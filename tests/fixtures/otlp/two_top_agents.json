@@ -1,0 +1,110 @@
+{
+  "resourceSpans": [
+    {
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "99999999999999999999999999999999",
+              "spanId": "8989898989898989",
+              "name": "agent-early",
+              "startTimeUnixNano": "1791450000000000000",
+              "endTimeUnixNano": "1791450002000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "billing-copilot"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.version",
+                  "value": {
+                    "stringValue": "early"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            },
+            {
+              "traceId": "99999999999999999999999999999999",
+              "spanId": "8b8b8b8b8b8b8b8b",
+              "name": "chat",
+              "startTimeUnixNano": "1791450000200000000",
+              "endTimeUnixNano": "1791450001000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "8989898989898989"
+            },
+            {
+              "traceId": "99999999999999999999999999999999",
+              "spanId": "8a8a8a8a8a8a8a8a",
+              "name": "agent-late",
+              "startTimeUnixNano": "1791450003000000000",
+              "endTimeUnixNano": "1791450005000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "billing-copilot"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.version",
+                  "value": {
+                    "stringValue": "late"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            },
+            {
+              "traceId": "99999999999999999999999999999999",
+              "spanId": "8c8c8c8c8c8c8c8c",
+              "name": "chat",
+              "startTimeUnixNano": "1791450003200000000",
+              "endTimeUnixNano": "1791450004000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "8a8a8a8a8a8a8a8a"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

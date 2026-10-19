@@ -1,0 +1,73 @@
+{
+  "resourceSpans": [
+    {
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "0123456789abcdef0123456789abcdef",
+              "spanId": "ababcdcdababcdcd",
+              "name": "invoke_agent",
+              "startTimeUnixNano": "1791450000000000000",
+              "endTimeUnixNano": "1791450002000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "billing-copilot"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.version",
+                  "value": {
+                    "stringValue": "a1b2c3d"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            },
+            {
+              "traceId": "0123456789abcdef0123456789abcdef",
+              "spanId": "bcbcbcbcbcbcbcbc",
+              "name": "sql_query",
+              "startTimeUnixNano": "1791450000200000000",
+              "endTimeUnixNano": "1791450000500000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "sql_query"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"q\": \"one\"}"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "ababcdcdababcdcd"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

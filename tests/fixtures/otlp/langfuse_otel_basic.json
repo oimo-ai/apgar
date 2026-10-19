@@ -1,0 +1,134 @@
+{
+  "resourceSpans": [
+    {
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "77777777777777777777777777777777",
+              "spanId": "6767676767676767",
+              "name": "billing",
+              "startTimeUnixNano": "1791450000000000000",
+              "endTimeUnixNano": "1791450002000000000",
+              "attributes": [
+                {
+                  "key": "langfuse.observation.type",
+                  "value": {
+                    "stringValue": "span"
+                  }
+                },
+                {
+                  "key": "langfuse.trace.name",
+                  "value": {
+                    "stringValue": "billing-copilot"
+                  }
+                },
+                {
+                  "key": "langfuse.release",
+                  "value": {
+                    "stringValue": "a1b2c3d"
+                  }
+                },
+                {
+                  "key": "langfuse.session.id",
+                  "value": {
+                    "stringValue": "s-lf"
+                  }
+                },
+                {
+                  "key": "langfuse.environment",
+                  "value": {
+                    "stringValue": "production"
+                  }
+                },
+                {
+                  "key": "langfuse.prompt.name",
+                  "value": {
+                    "stringValue": "billing"
+                  }
+                },
+                {
+                  "key": "langfuse.prompt.version",
+                  "value": {
+                    "stringValue": "7"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            },
+            {
+              "traceId": "77777777777777777777777777777777",
+              "spanId": "6868686868686868",
+              "name": "generation",
+              "startTimeUnixNano": "1791450000100000000",
+              "endTimeUnixNano": "1791450001000000000",
+              "attributes": [
+                {
+                  "key": "langfuse.observation.type",
+                  "value": {
+                    "stringValue": "generation"
+                  }
+                },
+                {
+                  "key": "langfuse.observation.model.name",
+                  "value": {
+                    "stringValue": "gpt-4.1"
+                  }
+                },
+                {
+                  "key": "langfuse.observation.usage_details",
+                  "value": {
+                    "stringValue": "{\"input\": 900, \"output\": 150}"
+                  }
+                },
+                {
+                  "key": "langfuse.observation.cost_details",
+                  "value": {
+                    "stringValue": "{\"total\": 0.003}"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "6767676767676767"
+            },
+            {
+              "traceId": "77777777777777777777777777777777",
+              "spanId": "6969696969696969",
+              "name": "tool",
+              "startTimeUnixNano": "1791450001000000000",
+              "endTimeUnixNano": "1791450001300000000",
+              "attributes": [
+                {
+                  "key": "langfuse.observation.type",
+                  "value": {
+                    "stringValue": "tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "sql_query"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"q\": \"select 1\"}"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "6767676767676767"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

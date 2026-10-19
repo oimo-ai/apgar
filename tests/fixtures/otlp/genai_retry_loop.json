@@ -1,0 +1,203 @@
+{
+  "resourceSpans": [
+    {
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "22222222222222222222222222222222",
+              "spanId": "1212121212121212",
+              "name": "invoke_agent",
+              "startTimeUnixNano": "1791450000000000000",
+              "endTimeUnixNano": "1791450005000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "billing-copilot"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.version",
+                  "value": {
+                    "stringValue": "a1b2c3d"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            },
+            {
+              "traceId": "22222222222222222222222222222222",
+              "spanId": "1313131313131313",
+              "name": "sql_query",
+              "startTimeUnixNano": "1791450000100000000",
+              "endTimeUnixNano": "1791450000300000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "sql_query"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"q\": \"select 1\"}"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "ToolError"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_ERROR"
+              },
+              "parentSpanId": "1212121212121212"
+            },
+            {
+              "traceId": "22222222222222222222222222222222",
+              "spanId": "1414141414141414",
+              "name": "sql_query",
+              "startTimeUnixNano": "1791450000400000000",
+              "endTimeUnixNano": "1791450000600000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "sql_query"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"q\": \"select 1\"}"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "1212121212121212"
+            },
+            {
+              "traceId": "22222222222222222222222222222222",
+              "spanId": "1515151515151515",
+              "name": "get_invoice",
+              "startTimeUnixNano": "1791450000800000000",
+              "endTimeUnixNano": "1791450001000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "get_invoice"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"id\": \"Y\"}"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "1212121212121212"
+            },
+            {
+              "traceId": "22222222222222222222222222222222",
+              "spanId": "1616161616161616",
+              "name": "get_invoice",
+              "startTimeUnixNano": "1791450001200000000",
+              "endTimeUnixNano": "1791450001400000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "get_invoice"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"id\": \"Y\"}"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "1212121212121212"
+            },
+            {
+              "traceId": "22222222222222222222222222222222",
+              "spanId": "1717171717171717",
+              "name": "get_invoice",
+              "startTimeUnixNano": "1791450001600000000",
+              "endTimeUnixNano": "1791450001800000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "get_invoice"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"id\": \"Y\"}"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "1212121212121212"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

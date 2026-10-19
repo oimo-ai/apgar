@@ -1,0 +1,66 @@
+x-apgar-env: &apgar-env
+  APGAR_CLICKHOUSE_URL: http://clickhouse:8123
+  APGAR_CLICKHOUSE_USER: apgar
+  APGAR_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+  APGAR_CLICKHOUSE_DATABASE: apgar
+  APGAR_SECRET_KEY: ${APGAR_SECRET_KEY}
+  APGAR_ADMIN_TOKEN: ${APGAR_ADMIN_TOKEN}
+  APGAR_TELEMETRY: ${APGAR_TELEMETRY:-1}
+  APGAR_PUBLIC_URL: ${APGAR_PUBLIC_URL:-http://localhost:8080}
+  APGAR_ALLOW_INSECURE_SLACK: ${APGAR_ALLOW_INSECURE_SLACK:-false}
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    environment: { CLICKHOUSE_USER: apgar, CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD}", CLICKHOUSE_DB: apgar }
+    volumes: [clickhouse-data:/var/lib/clickhouse]
+    ports: ["8123:8123"]
+    ulimits: { nofile: { soft: 262144, hard: 262144 } }
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  apgar-migrate:
+    build: .
+    image: apgar:dev
+    command: migrate
+    environment: *apgar-env
+    restart: "no"
+    depends_on: { clickhouse: { condition: service_healthy } }
+  apgar-api:
+    image: apgar:dev
+    command: api
+    environment:
+      <<: *apgar-env
+      APGAR_WORKER_METRICS_URL: http://apgar-worker:8001/metrics
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/readyz', timeout=2).status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    depends_on: { apgar-migrate: { condition: service_completed_successfully } }
+  apgar-worker:
+    image: apgar:dev
+    command: worker
+    environment: *apgar-env
+    deploy: { replicas: 1 }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/metrics', timeout=2).status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    depends_on: { apgar-migrate: { condition: service_completed_successfully } }
+  apgar-ui:
+    build: { context: ., dockerfile: ui/Dockerfile }
+    image: apgar-ui:dev
+    ports: ["8080:80"]
+    environment: { API_UPSTREAM: http://apgar-api:8000 }
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    depends_on: [apgar-api]
+volumes:
+  clickhouse-data: {}

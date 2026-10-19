@@ -1,0 +1,50 @@
+name: ci
+"on":
+  push:
+  pull_request:
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.8
+        env:
+          CLICKHOUSE_USER: apgar
+          CLICKHOUSE_PASSWORD: apgar_test
+          CLICKHOUSE_DB: apgar
+        ports:
+          - 18123:8123
+        options: --health-cmd "wget -q --spider http://localhost:8123/ping" --health-interval 5s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-extras
+      - run: make lint
+      - run: make typecheck
+      - run: make test-unit
+      - run: APGAR_TEST_REQUIRE_CLICKHOUSE=1 make test-integration
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t apgar:dev .
+      - run: docker build -t apgar-ui:dev -f ui/Dockerfile .
+  ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - run: npm run tokens
+      - run: npm run lint
+      - run: npm run lint:colors
+      - run: npm run typecheck
+      - run: npm run test -- --run
+      - run: npm run build

@@ -1,0 +1,130 @@
+{
+  "resourceSpans": [
+    {
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "88888888888888888888888888888888",
+              "spanId": "7878787878787878",
+              "name": "workflow",
+              "startTimeUnixNano": "1791450000000000000",
+              "endTimeUnixNano": "1791450004000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_workflow"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "billing-copilot"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.version",
+                  "value": {
+                    "stringValue": "a1b2c3d"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            },
+            {
+              "traceId": "88888888888888888888888888888888",
+              "spanId": "7979797979797979",
+              "name": "agent",
+              "startTimeUnixNano": "1791450000100000000",
+              "endTimeUnixNano": "1791450002000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "7878787878787878"
+            },
+            {
+              "traceId": "88888888888888888888888888888888",
+              "spanId": "7a7a7a7a7a7a7a7a",
+              "name": "chat",
+              "startTimeUnixNano": "1791450000200000000",
+              "endTimeUnixNano": "1791450001000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "gpt-4.1"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "7979797979797979"
+            },
+            {
+              "traceId": "88888888888888888888888888888888",
+              "spanId": "7b7b7b7b7b7b7b7b",
+              "name": "agent",
+              "startTimeUnixNano": "1791450002000000000",
+              "endTimeUnixNano": "1791450003500000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "7878787878787878"
+            },
+            {
+              "traceId": "88888888888888888888888888888888",
+              "spanId": "7c7c7c7c7c7c7c7c",
+              "name": "chat",
+              "startTimeUnixNano": "1791450002100000000",
+              "endTimeUnixNano": "1791450003000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "gpt-4.1-mini"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "7b7b7b7b7b7b7b7b"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

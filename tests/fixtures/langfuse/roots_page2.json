@@ -1,0 +1,36 @@
+{
+  "data": [
+    {
+      "id": "eeeeeeeeeeeeeeee",
+      "traceId": "44444444444444444444444444444444",
+      "type": "CHAIN",
+      "name": "billing",
+      "startTime": "2026-10-08T08:03:00.000Z",
+      "endTime": "2026-10-08T08:03:01.000Z",
+      "isRootObservation": true,
+      "parentObservationId": "ffffffffffffaaaa",
+      "traceName": "billing-copilot",
+      "release": "a1b2c3d",
+      "sessionId": "s-4",
+      "environment": "production",
+      "tags": ["prod"],
+      "metadata": {"channel": "slack"}
+    },
+    {
+      "id": "cm1abcroot000005",
+      "traceId": "trace-not-hex-0000000000000005",
+      "type": "SPAN",
+      "name": "billing",
+      "startTime": "2026-10-08T08:04:00.000Z",
+      "endTime": "2026-10-08T08:04:01.000Z",
+      "isRootObservation": true,
+      "traceName": "billing-copilot",
+      "release": "a1b2c3d",
+      "sessionId": "s-5",
+      "environment": "production",
+      "tags": ["prod"],
+      "metadata": {"channel": "slack"}
+    }
+  ],
+  "meta": {"cursor": null}
+}

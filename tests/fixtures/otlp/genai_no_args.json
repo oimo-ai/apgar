@@ -1,0 +1,86 @@
+{
+  "resourceSpans": [
+    {
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "33333333333333333333333333333333",
+              "spanId": "2323232323232323",
+              "name": "invoke_agent",
+              "startTimeUnixNano": "1791450000000000000",
+              "endTimeUnixNano": "1791450002000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "billing-copilot"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            },
+            {
+              "traceId": "33333333333333333333333333333333",
+              "spanId": "2424242424242424",
+              "name": "sql_query",
+              "startTimeUnixNano": "1791450000200000000",
+              "endTimeUnixNano": "1791450000400000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "sql_query"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "2323232323232323"
+            },
+            {
+              "traceId": "33333333333333333333333333333333",
+              "spanId": "2525252525252525",
+              "name": "sql_query",
+              "startTimeUnixNano": "1791450000500000000",
+              "endTimeUnixNano": "1791450000700000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "sql_query"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              },
+              "parentSpanId": "2323232323232323"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

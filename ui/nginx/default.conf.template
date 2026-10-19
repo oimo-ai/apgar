@@ -1,0 +1,16 @@
+server {
+  listen 80;
+  listen [::]:80;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+  # A variable upstream makes nginx re-resolve the API host, so a recreated API container is picked up without restarting the UI.
+  resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
+  set $api_upstream ${API_UPSTREAM};
+  location /api/ { proxy_pass $api_upstream; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_read_timeout 120s; }
+  location /v1/ { proxy_pass $api_upstream; proxy_set_header Host $host; client_max_body_size 64m; proxy_request_buffering off; proxy_read_timeout 120s; }
+  location = /healthz { proxy_pass $api_upstream; }
+  location = /readyz { proxy_pass $api_upstream; }
+  location /assets/ { expires 1y; add_header Cache-Control "public, immutable"; try_files $uri =404; }
+  location / { add_header Cache-Control "no-cache"; try_files $uri /index.html; }
+}

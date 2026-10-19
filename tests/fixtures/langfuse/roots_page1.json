@@ -1,0 +1,55 @@
+{
+  "data": [
+    {
+      "id": "aaaaaaaaaaaaaaaa",
+      "traceId": "11111111111111111111111111111111",
+      "type": "SPAN",
+      "name": "billing",
+      "startTime": "2026-10-08T08:00:00.000Z",
+      "endTime": "2026-10-08T08:00:02.000Z",
+      "isRootObservation": true,
+      "parentObservationId": "bbbbbbbbbbbbbbbb",
+      "traceName": "billing-copilot",
+      "release": "a1b2c3d",
+      "sessionId": "s-1",
+      "environment": "production",
+      "tags": ["prod"],
+      "metadata": {"channel": "slack"},
+      "promptName": "billing",
+      "promptVersion": 7
+    },
+    {
+      "id": "cccccccccccccccc",
+      "traceId": "22222222222222222222222222222222",
+      "type": "AGENT",
+      "name": "billing",
+      "startTime": "2026-10-08T08:01:00.000Z",
+      "endTime": "2026-10-08T08:01:02.000Z",
+      "isRootObservation": true,
+      "traceName": "billing-copilot",
+      "release": "a1b2c3d",
+      "sessionId": "s-2",
+      "environment": "production",
+      "tags": ["prod"],
+      "metadata": {"channel": "slack"},
+      "promptName": "billing",
+      "promptVersion": 7
+    },
+    {
+      "id": "dddddddddddddddd",
+      "traceId": "33333333333333333333333333333333",
+      "type": "SPAN",
+      "name": "billing",
+      "startTime": "2026-10-08T08:02:00.000Z",
+      "endTime": "2026-10-08T08:02:01.000Z",
+      "isRootObservation": true,
+      "traceName": "billing-copilot",
+      "release": "a1b2c3d",
+      "sessionId": "s-3",
+      "environment": "production",
+      "tags": ["prod"],
+      "metadata": {"channel": "slack"}
+    }
+  ],
+  "meta": {"cursor": "c1"}
+}

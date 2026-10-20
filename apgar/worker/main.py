@@ -5,6 +5,7 @@ import logging
 import signal
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 
 from prometheus_client import start_http_server
 
@@ -21,6 +22,7 @@ from apgar.telemetry import log_startup
 from apgar.worker.heartbeat import AnotherWorkerRunning, clear, guard, write
 from apgar.worker.jobs import register_jobs
 from apgar.worker.reencrypt import reencrypt_connections
+from apgar.yaml_config import apply
 
 _LOG = logging.getLogger("apgar.worker")
 
@@ -45,12 +47,12 @@ async def run_worker(
     except AnotherWorkerRunning:
         _LOG.error("another worker heartbeat is younger than 30 seconds; refusing to start")
         raise SystemExit(1) from None
+    box = SecretBox(settings.secret_key, settings.secret_key_previous)
     if settings.secret_key_previous:
-        await reencrypt_connections(
-            meta_store,
-            SecretBox(settings.secret_key, settings.secret_key_previous),
-            now,
-        )
+        await reencrypt_connections(meta_store, box, now)
+    config_file = Path(settings.config_file)
+    if config_file.exists():
+        await apply(config_file, settings, meta_store, box, clock())
     log_startup(settings)
     start_http_server(settings.worker_metrics_port)
     await write(meta_store, settings.worker_instance_id, now)

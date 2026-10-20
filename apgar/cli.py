@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 from typing import Any, NoReturn
 
 import click
@@ -30,10 +29,13 @@ from apgar.storage.clickhouse.migrate import (
 from apgar.verdict.evaluate import Evaluator
 from apgar.verdict.pool import InlinePool
 from apgar.worker.main import run_worker
-from apgar.yaml_config import ConfigError, apply
+from apgar.yaml_config import ConfigError
 
 
 def _fail(exc: BaseException) -> NoReturn:
+    if isinstance(exc, ConfigError):
+        click.echo(str(exc), err=True)
+        raise SystemExit(2) from exc
     if isinstance(exc, SchemaVersionError):
         click.echo(str(exc), err=True)
         raise SystemExit(3) from exc
@@ -50,17 +52,6 @@ def _box(settings: Settings) -> SecretBox:
 
 def _meta(client: Any, settings: Settings) -> ClickHouseMetaStore:
     return ClickHouseMetaStore(client, _box(settings))
-
-
-async def _apply_file(settings: Settings, meta_store: ClickHouseMetaStore) -> None:
-    path = Path(settings.config_file)
-    if not path.exists():
-        return
-    try:
-        await apply(path, settings, meta_store, _box(settings), utcnow())
-    except ConfigError as exc:
-        click.echo(str(exc), err=True)
-        raise SystemExit(2) from exc
 
 
 async def _open_client(settings: Settings) -> Any:
@@ -88,13 +79,7 @@ async def _run_api() -> None:
     except Exception as exc:
         await client.close()
         _fail(exc)
-    meta_store = _meta(client, settings)
-    try:
-        await _apply_file(settings, meta_store)
-    except SystemExit:
-        await client.close()
-        raise
-    app = create_app(settings, ClickHouseEventStore(client), meta_store)
+    app = create_app(settings, ClickHouseEventStore(client), _meta(client, settings))
     app.state.client = client
     config = uvicorn.Config(
         app,
@@ -111,9 +96,7 @@ async def _run_worker() -> None:
     client = await _open_client(settings)
     try:
         await check_schema_version(client)
-        meta_store = _meta(client, settings)
-        await _apply_file(settings, meta_store)
-        await run_worker(settings, ClickHouseEventStore(client), meta_store)
+        await run_worker(settings, ClickHouseEventStore(client), _meta(client, settings))
     except SystemExit:
         raise
     except Exception as exc:

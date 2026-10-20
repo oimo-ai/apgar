@@ -31,7 +31,13 @@ COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
 
 ## Releases
 
-1. Set the version in `pyproject.toml`, `apgar/__init__.py`, `ui/package.json`, and both image tags in `docker-compose.yml`. Then run `uv lock` and, in `ui/`, `npm version X.Y.Z --no-git-tag-version`. `tests/unit/test_release_version.py` fails until all of them agree.
+1. Set the version on a branch:
+
+   ```bash
+   make version VERSION=X.Y.Z
+   ```
+
+   It writes `X.Y.Z` to `pyproject.toml`, `apgar/__init__.py`, `ui/package.json`, `ui/package-lock.json`, `uv.lock`, and both image tags in `docker-compose.yml`, and prints the tag to push. `tests/unit/test_release_version.py` fails while these places disagree.
 2. Merge the change, then tag the commit on `main` and push the tag:
 
    ```bash
@@ -41,6 +47,6 @@ COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
 
 3. `.github/workflows/release.yml` checks the tag with `scripts/release_version.py`, pushes `ghcr.io/oimo-ai/apgar` and `ghcr.io/oimo-ai/apgar-ui` tagged `X.Y.Z`, `X.Y`, and `latest`, and publishes a GitHub release with the Compose file attached.
 
-A tag with a suffix, such as `vX.Y.Z-rc.1`, is a prerelease. The version files keep `X.Y.Z`. Its images are tagged only `X.Y.Z-rc.1`, its attached Compose file points at them, and the GitHub release is marked as a prerelease, so `releases/latest` keeps pointing at the last stable release.
+A tag with a suffix, such as `vX.Y.Z-rc.1`, is a prerelease. Its images are tagged only `X.Y.Z-rc.1`, its attached Compose file points at them, and the GitHub release is marked as a prerelease, so `releases/latest` keeps pointing at the last stable release. The version files keep `X.Y.Z`: `make version VERSION=X.Y.Z-rc.1` writes `X.Y.Z` and prints the tag `vX.Y.Z-rc.1`.
 
 When a release changes `.env`, the Compose file, or needs a step before it starts, add upgrade notes to the release text.

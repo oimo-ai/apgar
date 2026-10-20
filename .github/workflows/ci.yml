@@ -29,6 +29,7 @@ jobs:
               - 'docker-compose.yml'
               - 'scripts/**'
               - 'ui/package.json'
+              - 'ui/package-lock.json'
               - 'Makefile'
               - '.github/workflows/ci.yml'
             ui:

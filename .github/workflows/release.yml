@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: check
-        run: python3 scripts/release_version.py "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+        run: python3 scripts/release_version.py check "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
   images:
     needs: version
     runs-on: ubuntu-latest
@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/release_version.py "$GITHUB_REF_NAME" --compose "$RUNNER_TEMP/docker-compose.yml"
+      - run: python3 scripts/release_version.py check "$GITHUB_REF_NAME" --compose "$RUNNER_TEMP/docker-compose.yml"
       - uses: softprops/action-gh-release@v2
         with:
           files: ${{ runner.temp }}/docker-compose.yml

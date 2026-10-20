@@ -1,4 +1,4 @@
-.PHONY: sync lint format typecheck test-unit test-integration test test-coverage ch-test-up ch-test-down docker-build up down ci ui-install ui-lint ui-typecheck ui-test ui-test-coverage ui-build e2e licenses
+.PHONY: sync lint format typecheck test-unit test-integration test test-coverage ch-test-up ch-test-down docker-build up down ci ui-install ui-lint ui-typecheck ui-test ui-test-coverage ui-build e2e licenses version
 
 COMPOSE_DEV = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
@@ -65,6 +65,10 @@ down:
 
 ci:
 	APGAR_TEST_REQUIRE_CLICKHOUSE=1 $(MAKE) lint typecheck ch-test-up test-coverage docker-build ui-install ui-lint ui-typecheck ui-test-coverage ui-build licenses
+
+version:
+	@test -n "$(VERSION)" || { echo "usage: make version VERSION=X.Y.Z" >&2; exit 2; }
+	uv run python scripts/release_version.py set $(VERSION)
 
 licenses:
 	uv run python scripts/check_licenses.py

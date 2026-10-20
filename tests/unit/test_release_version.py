@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -36,13 +37,25 @@ def _script() -> ModuleType:
 
 
 def _repo(root: Path, version: str, apgar_image: str, ui_image: str) -> Path:
-    (root / "apgar").mkdir()
+    (root / "apgar").mkdir(parents=True)
     (root / "ui").mkdir()
     (root / "pyproject.toml").write_text(f'[project]\nversion = "{version}"\n', encoding="utf-8")
     (root / "apgar" / "__init__.py").write_text(f'__version__ = "{version}"\n', encoding="utf-8")
     (root / "ui" / "package.json").write_text(json.dumps({"version": version}), encoding="utf-8")
+    lock = {"version": version, "packages": {"": {"version": version}}}
+    (root / "ui" / "package-lock.json").write_text(json.dumps(lock), encoding="utf-8")
+    (root / "uv.lock").write_text(
+        f'version = 1\n\n[[package]]\nname = "apgar"\nversion = "{version}"\n', encoding="utf-8"
+    )
     compose = COMPOSE.format(apgar=apgar_image, ui=ui_image)
     (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
+    return root
+
+
+def _copy_repo(script: ModuleType, root: Path) -> Path:
+    for path in {place.path for place in script.PLACES}:
+        (root / path).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / path, root / path)
     return root
 
 
@@ -79,17 +92,22 @@ def test_reports_every_place_that_disagrees(tmp_path: Path) -> None:
     script = _script()
     root = _repo(tmp_path, "0.2.0", "0.1.0", "0.2.0")
     (root / "ui" / "package.json").write_text(json.dumps({"version": "0.1.9"}), encoding="utf-8")
+    lock = {"version": "0.2.0", "packages": {"": {"version": "0.1.9"}}}
+    (root / "ui" / "package-lock.json").write_text(json.dumps(lock), encoding="utf-8")
     assert script.mismatches(script.parse_tag("v0.2.0"), root) == [
         "ui/package.json has 0.1.9, tag v0.2.0 needs 0.2.0",
+        "ui/package-lock.json has 0.1.9, 0.2.0, tag v0.2.0 needs 0.2.0",
         "docker-compose.yml image apgar has 0.1.0, tag v0.2.0 needs 0.2.0",
     ]
 
 
-def test_reports_images_missing_from_compose(tmp_path: Path) -> None:
+def test_reports_places_that_are_missing(tmp_path: Path) -> None:
     script = _script()
     root = _repo(tmp_path, "0.2.0", "0.2.0", "0.2.0")
     (root / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+    (root / "uv.lock").write_text("version = 1\n", encoding="utf-8")
     assert script.mismatches(script.parse_tag("v0.2.0"), root) == [
+        "uv.lock has missing, tag v0.2.0 needs 0.2.0",
         "docker-compose.yml image apgar has missing, tag v0.2.0 needs 0.2.0",
         "docker-compose.yml image apgar-ui has missing, tag v0.2.0 needs 0.2.0",
     ]
@@ -102,29 +120,76 @@ def test_render_pins_both_images_to_the_prerelease(tmp_path: Path) -> None:
     assert rendered == COMPOSE.format(apgar="0.2.0-rc.1", ui="0.2.0-rc.1")
 
 
-def test_main_writes_compose_and_outputs(
+def test_check_writes_compose_and_outputs(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     script = _script()
-    root = tmp_path / "repo"
-    root.mkdir()
-    _repo(root, "0.2.0", "0.2.0", "0.2.0")
+    root = _repo(tmp_path / "repo", "0.2.0", "0.2.0", "0.2.0")
     out = tmp_path / "docker-compose.yml"
-    assert script.main(["v0.2.0", "--compose", str(out)], root=root) == 0
+    assert script.main(["check", "v0.2.0", "--compose", str(out)], root=root) == 0
     assert capsys.readouterr().out == "version=0.2.0\nminor=0.2\nprerelease=false\n"
     assert out.read_text(encoding="utf-8") == COMPOSE.format(apgar="0.2.0", ui="0.2.0")
 
 
-def test_main_fails_without_writing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_check_fails_without_writing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     script = _script()
-    root = tmp_path / "repo"
-    root.mkdir()
-    _repo(root, "0.2.0", "0.2.0", "0.2.0")
+    root = _repo(tmp_path / "repo", "0.2.0", "0.2.0", "0.2.0")
     out = tmp_path / "docker-compose.yml"
-    assert script.main(["v0.3.0", "--compose", str(out)], root=root) == 1
+    assert script.main(["check", "v0.3.0", "--compose", str(out)], root=root) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "pyproject.toml has 0.2.0, tag v0.3.0 needs 0.3.0" in captured.err
     assert not out.exists()
-    assert script.main(["0.2.0"], root=root) == 1
+    assert script.main(["check", "0.2.0"], root=root) == 1
     assert "is not vX.Y.Z" in capsys.readouterr().err
+
+
+def test_set_changes_only_the_version_lines(tmp_path: Path) -> None:
+    script = _script()
+    root = _copy_repo(script, tmp_path)
+    script.set_version(script.parse_tag("v9.8.7"), root)
+    assert script.mismatches(script.parse_tag("v9.8.7"), root) == []
+    changed = 0
+    for path in {place.path for place in script.PLACES}:
+        before = (ROOT / path).read_text(encoding="utf-8").splitlines()
+        after = (root / path).read_text(encoding="utf-8").splitlines()
+        assert len(before) == len(after)
+        for old, new in zip(before, after, strict=True):
+            if old != new:
+                assert new == old.replace(apgar.__version__, "9.8.7")
+                changed += 1
+    assert changed == 8
+
+
+def test_set_keeps_the_prerelease_in_the_tag(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    script = _script()
+    root = _repo(tmp_path, "0.1.0", "0.1.0", "0.1.0")
+    assert script.main(["set", "0.2.0-rc.1"], root=root) == 0
+    assert script.repository_versions(root) == dict.fromkeys(
+        (place.name for place in script.PLACES), "0.2.0"
+    )
+    out = capsys.readouterr().out
+    assert "Set 0.2.0 in pyproject.toml," in out
+    assert "git tag v0.2.0-rc.1 && git push origin v0.2.0-rc.1" in out
+
+
+def test_set_rejects_a_malformed_version(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    script = _script()
+    root = _repo(tmp_path, "0.1.0", "0.1.0", "0.1.0")
+    assert script.main(["set", "0.2"], root=root) == 1
+    assert "version 0.2 is not X.Y.Z" in capsys.readouterr().err
+    assert script.repository_versions(root)["pyproject.toml"] == "0.1.0"
+
+
+def test_set_reports_a_place_it_cannot_write(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    script = _script()
+    root = _repo(tmp_path, "0.1.0", "0.1.0", "0.1.0")
+    (root / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    assert script.main(["set", "0.2.0"], root=root) == 1
+    assert "uv.lock has missing, tag v0.2.0 needs 0.2.0" in capsys.readouterr().err

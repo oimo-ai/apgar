@@ -7,6 +7,7 @@ import {
   formatTolerance,
   formatUtcShort,
   formatValue,
+  releaseHref,
 } from "@/lib/format";
 
 const MINUS = "\u2212";
@@ -21,6 +22,14 @@ describe("format", () => {
     expect(formatRelative(ago(36 * 3600), now)).toBe("1d ago");
     expect(formatRelative("2026-10-03T08:00:00.000Z", now)).toBe("Oct 3");
     expect(formatRelative("2025-12-30T08:00:00.000Z", now)).toBe("Dec 30, 2025");
+  });
+
+  it("formats a percentage point delta and ignores a bad timestamp", () => {
+    expect(formatPp(0.02)).toBe("+2.0 pp");
+    expect(formatPp(0)).toBe("0.0 pp");
+    expect(formatRelative("not-a-date", Date.parse("2026-10-12T12:00:00.000Z"))).toBe("");
+    expect(formatUtcShort("not-a-date")).toBe("not-a-date");
+    expect(releaseHref("billing copilot", "rel/1")).toBe("/agents/billing%20copilot/releases/rel%2F1");
   });
 
   it("formats a short UTC timestamp", () => {

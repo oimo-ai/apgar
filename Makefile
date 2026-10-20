@@ -1,4 +1,4 @@
-.PHONY: sync lint format typecheck test-unit test-integration test test-coverage ch-test-up ch-test-down docker-build up down ci ui-install ui-lint ui-typecheck ui-test ui-build e2e licenses
+.PHONY: sync lint format typecheck test-unit test-integration test test-coverage ch-test-up ch-test-down docker-build up down ci ui-install ui-lint ui-typecheck ui-test ui-test-coverage ui-build e2e licenses
 
 sync:
 	uv sync --all-extras
@@ -45,6 +45,9 @@ ui-typecheck:
 ui-test:
 	npm run test --prefix ui -- --run
 
+ui-test-coverage:
+	npm run test --prefix ui -- --run --coverage --coverage.thresholds.statements=95
+
 ui-build:
 	npm run build --prefix ui
 
@@ -59,7 +62,7 @@ down:
 	docker compose down -v
 
 ci:
-	APGAR_TEST_REQUIRE_CLICKHOUSE=1 $(MAKE) lint typecheck ch-test-up test-coverage docker-build ui-install ui-lint ui-typecheck ui-test ui-build licenses
+	APGAR_TEST_REQUIRE_CLICKHOUSE=1 $(MAKE) lint typecheck ch-test-up test-coverage docker-build ui-install ui-lint ui-typecheck ui-test-coverage ui-build licenses
 
 licenses:
 	uv run python scripts/check_licenses.py

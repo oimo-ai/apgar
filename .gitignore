@@ -20,4 +20,5 @@ ui/test-results/
 ui/e2e/.auth/
 ui/e2e/.state/
 ui/blob-report/
+ui/coverage/
 .DS_Store

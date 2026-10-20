@@ -1,5 +1,5 @@
 import type { ReleaseDetail } from "@/api/types";
-import { releaseStatus } from "@/lib/releaseStatus";
+import { checkKind, releaseStatus } from "@/lib/releaseStatus";
 
 function detail(patch: Record<string, unknown> = {}): ReleaseDetail {
   return {
@@ -101,5 +101,18 @@ describe("releaseStatus", () => {
       kind: "ended",
       label: "Ended",
     });
+  });
+});
+
+describe("checkKind", () => {
+  it("maps a row to the status kind", () => {
+    expect(checkKind({ state: "FAIL", reason: "confirmed" })).toBe("regression");
+    expect(checkKind({ state: "PASS", reason: "confirmed" })).toBe("healthy");
+    expect(checkKind({ state: "INCONCLUSIVE", reason: "window_elapsed", final: true })).toBe("unconfirmed");
+    expect(checkKind({ state: "PENDING", reason: "no_baseline" })).toBe("first_release");
+    expect(checkKind({ state: "PENDING", reason: "insufficient_sample" })).toBe("collecting");
+    expect(checkKind({ state: "INCONCLUSIVE", reason: "fail_candidate" })).toBe("possible_regression");
+    expect(checkKind({ state: "INCONCLUSIVE", reason: "pass_candidate" })).toBe("looks_healthy");
+    expect(checkKind({ state: "INCONCLUSIVE", reason: "insufficient_power" })).toBe("not_enough_data");
   });
 });

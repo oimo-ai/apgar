@@ -123,6 +123,17 @@ describe("buildTimeline", () => {
     });
   });
 
+  it("records a stop request and drops an unknown event", () => {
+    const timeline = buildTimeline(
+      detail(),
+      [],
+      [event("2026-10-08T12:20:00Z", "stop"), event("2026-10-08T12:21:00Z", "note")],
+      NOW,
+    );
+    expect(timeline.markers[0]).toMatchObject({ kind: "stop", tip: { title: "Stop requested" } });
+    expect(timeline.markers.some((marker) => marker.kind === "stop")).toBe(true);
+  });
+
   it("names expected changes by metric", () => {
     const timeline = buildTimeline(detail(), [], [event("2026-10-08T12:20:00Z", "expected_changes", { metrics: [] })], NOW);
     expect(timeline.markers[0]).toMatchObject({ kind: "expected", tip: { title: "Expected changes updated" } });
@@ -208,5 +219,6 @@ describe("timeScale", () => {
     expect(at(100)).toBe(110);
     expect(at(150)).toBe(160);
     expect(at(200)).toBe(210);
+    expect(at(-1)).toBe(0);
   });
 });

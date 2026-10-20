@@ -1,9 +1,40 @@
 name: ci
 "on":
   push:
+    branches: [main]
   pull_request:
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      ui: ${{ steps.filter.outputs.ui }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            python:
+              - 'apgar/**'
+              - 'tests/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'Dockerfile'
+              - 'Makefile'
+              - '.github/workflows/ci.yml'
+            ui:
+              - 'ui/**'
+              - 'Makefile'
+              - '.github/workflows/ci.yml'
   python:
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     services:
       clickhouse:
@@ -22,13 +53,23 @@ jobs:
       - run: make lint
       - run: make typecheck
       - run: make test-coverage
-  docker:
+  docker-apgar:
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t apgar:dev .
+  docker-ui:
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - run: docker build -t apgar-ui:dev -f ui/Dockerfile .
   ui:
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,3 +88,19 @@ jobs:
       - run: npm run typecheck
       - run: npm run test -- --run --coverage --coverage.thresholds.statements=95
       - run: npm run build
+  result:
+    needs: [changes, python, docker-apgar, docker-ui, ui]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail when a selected job failed
+        env:
+          RESULTS: ${{ needs.changes.result }} ${{ needs.python.result }} ${{ needs.docker-apgar.result }} ${{ needs.docker-ui.result }} ${{ needs.ui.result }}
+        run: |
+          set -eu
+          for result in ${RESULTS}; do
+            case "${result}" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done

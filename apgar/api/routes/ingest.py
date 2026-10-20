@@ -21,6 +21,7 @@ from apgar.ingest.pipeline import write_batch
 from apgar.normalize.normalizer import HmacKeys, MalformedSpan, normalize
 from apgar.normalize.otlp import (
     MalformedPayload,
+    PayloadTooLarge,
     UnsupportedMediaType,
     decode_request,
     iter_raw_spans,
@@ -61,7 +62,11 @@ async def ingest_traces(request: Request) -> Response:
                 body,
                 content_type,
                 request.headers.get("content-encoding"),
+                max_body_bytes=request.app.state.settings.max_body_bytes,
             )
+        except PayloadTooLarge:
+            status_label = "413"
+            raise ApiError("payload_too_large", 413, "request body exceeds limit") from None
         except UnsupportedMediaType:
             status_label = "415"
             raise ApiError("unsupported_media_type", 415, "unsupported media type") from None

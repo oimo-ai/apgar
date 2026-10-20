@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import base64
 import gzip
+import zlib
 from collections.abc import Iterator
 from dataclasses import dataclass
+from io import BytesIO
 from typing import Any
 
 from google.protobuf.message import DecodeError
@@ -12,6 +14,10 @@ from opentelemetry.proto.common.v1.common_pb2 import AnyValue
 
 
 class MalformedPayload(Exception):
+    pass
+
+
+class PayloadTooLarge(Exception):
     pass
 
 
@@ -41,13 +47,20 @@ def decode_request(
     body: bytes,
     content_type: str,
     content_encoding: str | None,
+    *,
+    max_body_bytes: int | None = None,
 ) -> ExportTraceServiceRequest:
     payload = body
     if content_encoding and "gzip" in content_encoding.lower():
         try:
-            payload = gzip.decompress(body)
-        except (OSError, EOFError) as exc:
+            with gzip.GzipFile(fileobj=BytesIO(body)) as stream:
+                payload = (
+                    stream.read() if max_body_bytes is None else stream.read(max_body_bytes + 1)
+                )
+        except (OSError, EOFError, zlib.error) as exc:
             raise MalformedPayload("invalid gzip") from exc
+    if max_body_bytes is not None and len(payload) > max_body_bytes:
+        raise PayloadTooLarge
     media = _media_type(content_type)
     if media == "application/x-protobuf":
         try:
@@ -93,7 +106,13 @@ def iter_raw_spans(request: ExportTraceServiceRequest) -> Iterator[RawSpan]:
             for span in scope_spans.spans:
                 trace_id = span.trace_id.hex()
                 span_id = span.span_id.hex()
-                if len(trace_id) != 32 or len(span_id) != 16:
+                if (
+                    len(trace_id) != 32
+                    or len(span_id) != 16
+                    or not any(span.trace_id)
+                    or not any(span.span_id)
+                    or (span.parent_span_id and len(span.parent_span_id) != 8)
+                ):
                     trace_id = ""
                 yield RawSpan(
                     trace_id=trace_id,

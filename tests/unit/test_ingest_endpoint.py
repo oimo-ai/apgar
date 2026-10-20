@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import gzip
 import json
 from dataclasses import replace
 from datetime import datetime, timedelta
 
 import httpx
+import pytest
 from httpx import ASGITransport
 from prometheus_client import REGISTRY
 
@@ -483,3 +485,116 @@ async def test_agent_listing_failure_503(settings: Settings) -> None:
         )
     assert response.status_code == 503
     assert response.headers["retry-after"] == "5"
+
+
+@pytest.mark.parametrize(
+    ("body", "encoding"),
+    [
+        (b"\xff", ""),
+        (bytes.fromhex("1f8b0800000000000003ff000000000000000000"), "gzip"),
+    ],
+    ids=["invalid-utf8", "corrupt-deflate"],
+)
+async def test_malformed_encoding_returns_400(
+    settings: Settings, mem_stores: MemStores, body: bytes, encoding: str
+) -> None:
+    plaintext = await _token(mem_stores[1], FIXTURE_NOW)
+    async with await _client(settings, mem_stores, Clock(FIXTURE_NOW)) as client:
+        response = await client.post(
+            "/v1/traces",
+            content=body,
+            headers={
+                "authorization": f"Bearer {plaintext}",
+                "content-type": "application/json",
+                "content-encoding": encoding,
+            },
+        )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "malformed_payload"
+
+
+@pytest.mark.parametrize("over_limit", [False, True])
+@pytest.mark.parametrize("media", ["application/json", "application/x-protobuf"])
+async def test_gzip_expanded_body_limit(
+    settings: Settings, mem_stores: MemStores, over_limit: bool, media: str
+) -> None:
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+
+    limit = 1024
+    if media == "application/json":
+        body = b" " * (limit - 2) + b"{}"
+        extra = b" "
+    else:
+        request = ExportTraceServiceRequest()
+        request.resource_spans.add().schema_url = "x" * 1000
+        body = request.SerializeToString()
+        limit = len(body)
+        extra = b"\x00"
+    if over_limit:
+        body += extra
+    compressed = gzip.compress(body)
+    assert len(compressed) < limit
+    plaintext = await _token(mem_stores[1], FIXTURE_NOW)
+    limited = settings.model_copy(update={"max_body_bytes": limit})
+    async with await _client(limited, mem_stores, Clock(FIXTURE_NOW)) as client:
+        response = await client.post(
+            "/v1/traces",
+            content=compressed,
+            headers={
+                "authorization": f"Bearer {plaintext}",
+                "content-type": media,
+                "content-encoding": "gzip",
+            },
+        )
+    assert response.status_code == (413 if over_limit else 200)
+    if over_limit:
+        assert response.json()["error"]["code"] == "payload_too_large"
+
+
+@pytest.mark.parametrize("media", ["application/json", "application/x-protobuf"])
+@pytest.mark.parametrize("invalid", ["trace_id", "span_id", "parent_span_id"])
+async def test_invalid_ids_drop_only_the_bad_span(
+    settings: Settings, mem_stores: MemStores, media: str, invalid: str
+) -> None:
+    from google.protobuf.json_format import MessageToJson
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+
+    request = ExportTraceServiceRequest()
+    spans = request.resource_spans.add().scope_spans.add().spans
+    for _ in range(2):
+        span = spans.add()
+        span.trace_id = bytes.fromhex("12" * 16)
+        span.span_id = bytes.fromhex("ab" * 8)
+        span.start_time_unix_nano = int(FIXTURE_NOW.timestamp()) * 1_000_000_000
+    setattr(
+        spans[0], invalid, b"\x00" * {"trace_id": 16, "span_id": 8, "parent_span_id": 2}[invalid]
+    )
+    body = (
+        request.SerializeToString()
+        if media == "application/x-protobuf"
+        else MessageToJson(request).encode()
+    )
+    event, meta = mem_stores
+    plaintext = await _token(meta, FIXTURE_NOW)
+    token_id = (await meta.list_ingest_tokens())[0].id
+    before = _sample(
+        "apgar_ingest_spans_dropped_total", {"source_id": token_id, "reason": "invalid_ids"}
+    )
+    async with await _client(settings, mem_stores, Clock(FIXTURE_NOW)) as client:
+        response = await client.post(
+            "/v1/traces",
+            content=body,
+            headers={"authorization": f"Bearer {plaintext}", "content-type": media},
+        )
+    assert response.status_code == 200
+    stored = await event.spans_of_trace(token_id, "12" * 16)
+    assert len(stored) == 1
+    assert stored[0].span_id == "ab" * 8
+    state = (await event.read_trace_state([(token_id, "12" * 16)]))[(token_id, "12" * 16)]
+    assert state.span_count == 1
+    assert (
+        _sample(
+            "apgar_ingest_spans_dropped_total", {"source_id": token_id, "reason": "invalid_ids"}
+        )
+        == before + 1
+    )

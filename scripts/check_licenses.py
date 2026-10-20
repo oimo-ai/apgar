@@ -6,9 +6,15 @@ import argparse
 import json
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _version() -> str:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    return str(project["project"]["version"])
 
 
 def license_disposition(name: str) -> str:
@@ -74,7 +80,7 @@ def render_markdown(
     lines = [
         "# Licenses",
         "",
-        "This file records the licenses of the dependencies used to build Apgar 0.1.0.",
+        f"This file records the licenses of the dependencies used to build Apgar {_version()}.",
         "The policy check fails when a license name contains GPL or AGPL and does not",
         "contain LGPL. LGPL names are listed under Needs review.",
         "",

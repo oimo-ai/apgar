@@ -7,7 +7,18 @@ permissions:
   contents: write
   packages: write
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      minor: ${{ steps.check.outputs.minor }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: python3 scripts/release_version.py check "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
   images:
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,27 +29,56 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta-apgar
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/apgar
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ needs.version.outputs.version }},priority=1000
+            type=raw,value=${{ needs.version.outputs.minor }},enable=${{ needs.version.outputs.prerelease == 'false' }}
+            type=raw,value=latest,enable=${{ needs.version.outputs.prerelease == 'false' }}
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          tags: ${{ steps.meta-apgar.outputs.tags }}
+          labels: ${{ steps.meta-apgar.outputs.labels }}
+      - id: meta-ui
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/apgar-ui
+          flavor: latest=false
           tags: |
-            ghcr.io/${{ github.repository_owner }}/apgar:${{ github.ref_name }}
-            ghcr.io/${{ github.repository_owner }}/apgar:latest
+            type=raw,value=${{ needs.version.outputs.version }},priority=1000
+            type=raw,value=${{ needs.version.outputs.minor }},enable=${{ needs.version.outputs.prerelease == 'false' }}
+            type=raw,value=latest,enable=${{ needs.version.outputs.prerelease == 'false' }}
+          labels: org.opencontainers.image.title=apgar-ui
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: ui/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/apgar-ui:${{ github.ref_name }}
-            ghcr.io/${{ github.repository_owner }}/apgar-ui:latest
+          tags: ${{ steps.meta-ui.outputs.tags }}
+          labels: ${{ steps.meta-ui.outputs.labels }}
   release:
-    needs: images
+    needs: [version, images]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/release_version.py check "$GITHUB_REF_NAME" --compose "$RUNNER_TEMP/docker-compose.yml"
       - uses: softprops/action-gh-release@v2
         with:
+          files: ${{ runner.temp }}/docker-compose.yml
+          prerelease: ${{ needs.version.outputs.prerelease }}
           generate_release_notes: true
+          body: |
+            The Compose file for this release is attached as `docker-compose.yml`. To upgrade, back up the ClickHouse volume, then run these commands in the directory that holds the Compose file:
+
+            ```bash
+            curl -fsSLO ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-compose.yml
+            docker compose pull
+            docker compose up -d --wait
+            ```

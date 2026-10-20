@@ -27,8 +27,10 @@ export async function api(
   });
 }
 
+const COMPOSE_DEV = ["compose", "-f", "docker-compose.yml", "-f", "docker-compose.dev.yml"];
+
 export function purgeDemo(uiRoot: string): void {
-  execFileSync("docker", ["compose", "run", "--rm", "--no-deps", "apgar-worker", "demo", "purge"], {
+  execFileSync("docker", [...COMPOSE_DEV, "run", "--rm", "--no-deps", "apgar-worker", "demo", "purge"], {
     cwd: resolve(uiRoot, ".."),
     stdio: "inherit",
   });

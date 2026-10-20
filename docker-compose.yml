@@ -1,19 +1,23 @@
-x-apgar-env: &apgar-env
-  APGAR_CLICKHOUSE_URL: http://clickhouse:8123
-  APGAR_CLICKHOUSE_USER: apgar
-  APGAR_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
-  APGAR_CLICKHOUSE_DATABASE: apgar
-  APGAR_SECRET_KEY: ${APGAR_SECRET_KEY}
-  APGAR_ADMIN_TOKEN: ${APGAR_ADMIN_TOKEN}
-  APGAR_TELEMETRY: ${APGAR_TELEMETRY:-1}
-  APGAR_PUBLIC_URL: ${APGAR_PUBLIC_URL:-http://localhost:8080}
-  APGAR_ALLOW_INSECURE_SLACK: ${APGAR_ALLOW_INSECURE_SLACK:-false}
+# Apgar on Docker Compose. Every release attaches this file with its image tags:
+# https://github.com/oimo-ai/apgar/releases
+# Keep local changes in docker-compose.override.yml, so an upgrade can replace this file.
+name: apgar
+x-apgar: &apgar
+  image: ghcr.io/oimo-ai/apgar:0.1.0
+  env_file: .env
+  environment: &apgar-env
+    APGAR_CLICKHOUSE_URL: http://clickhouse:8123
+    APGAR_CLICKHOUSE_USER: apgar
+    APGAR_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set it in .env}
+    APGAR_CLICKHOUSE_DATABASE: apgar
+    APGAR_SECRET_KEY: ${APGAR_SECRET_KEY:?set it in .env}
+    APGAR_ADMIN_TOKEN: ${APGAR_ADMIN_TOKEN:?set it in .env}
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:25.8
-    environment: { CLICKHOUSE_USER: apgar, CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD}", CLICKHOUSE_DB: apgar }
+    restart: unless-stopped
+    environment: { CLICKHOUSE_USER: apgar, CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:?set it in .env}", CLICKHOUSE_DB: apgar }
     volumes: [clickhouse-data:/var/lib/clickhouse]
-    ports: ["8123:8123"]
     ulimits: { nofile: { soft: 262144, hard: 262144 } }
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
@@ -21,19 +25,17 @@ services:
       timeout: 3s
       retries: 30
   apgar-migrate:
-    build: .
-    image: apgar:dev
+    <<: *apgar
     command: migrate
-    environment: *apgar-env
     restart: "no"
     depends_on: { clickhouse: { condition: service_healthy } }
   apgar-api:
-    image: apgar:dev
+    <<: *apgar
     command: api
+    restart: unless-stopped
     environment:
       <<: *apgar-env
       APGAR_WORKER_METRICS_URL: http://apgar-worker:8001/metrics
-    ports: ["8000:8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/readyz', timeout=2).status==200 else 1)"]
       interval: 5s
@@ -41,9 +43,9 @@ services:
       retries: 30
     depends_on: { apgar-migrate: { condition: service_completed_successfully } }
   apgar-worker:
-    image: apgar:dev
+    <<: *apgar
     command: worker
-    environment: *apgar-env
+    restart: unless-stopped
     deploy: { replicas: 1 }
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/metrics', timeout=2).status==200 else 1)"]
@@ -52,8 +54,8 @@ services:
       retries: 30
     depends_on: { apgar-migrate: { condition: service_completed_successfully } }
   apgar-ui:
-    build: { context: ., dockerfile: ui/Dockerfile }
-    image: apgar-ui:dev
+    image: ghcr.io/oimo-ai/apgar-ui:0.1.0
+    restart: unless-stopped
     ports: ["8080:80"]
     environment: { API_UPSTREAM: http://apgar-api:8000 }
     healthcheck:

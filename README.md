@@ -6,4 +6,40 @@ Apgar is not a dashboard, an evaluation harness, or a rollout controller. It com
 
 The name refers to the Apgar score, a standardized health check performed on a newborn immediately after birth. Apgar performs the equivalent check on a release immediately after deployment.
 
-Will be updated.
+## Install
+
+Apgar runs on one host with Docker Compose: ClickHouse, the API, the worker, and the UI. It needs Docker with Compose v2, `curl`, and `openssl`.
+
+```bash
+mkdir apgar && cd apgar
+curl -fsSLO https://github.com/oimo-ai/apgar/releases/latest/download/docker-compose.yml
+cat > .env <<EOF
+APGAR_SECRET_KEY=$(openssl rand -hex 32)
+APGAR_ADMIN_TOKEN=$(openssl rand -hex 16)
+CLICKHOUSE_PASSWORD=$(openssl rand -hex 16)
+APGAR_PUBLIC_URL=http://localhost:8080
+EOF
+docker compose up -d --wait
+```
+
+Open http://localhost:8080 and sign in with the value of `APGAR_ADMIN_TOKEN` in `.env`. While no agent exists, the Agents page offers demo data to explore.
+
+On a server, set `APGAR_PUBLIC_URL` to the address people and exporters use, and terminate TLS in a reverse proxy in front of port 8080.
+
+## Upgrade
+
+Every release attaches a `docker-compose.yml` that pins its images. Read the release notes and back up the ClickHouse volume, then replace the Compose file and start the new version:
+
+```bash
+curl -fsSLO https://github.com/oimo-ai/apgar/releases/latest/download/docker-compose.yml
+docker compose pull
+docker compose up -d --wait
+```
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).

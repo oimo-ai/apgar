@@ -35,6 +35,7 @@ PY
 
 git clone --quiet "${REPO}" "${WORK}/apgar"
 cd "${WORK}/apgar"
+export COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
 
 SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
 ADMIN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"

@@ -8,6 +8,7 @@ import httpx
 import pytest
 from prometheus_client import REGISTRY
 
+from apgar import __version__
 from apgar.config import Settings
 from apgar.domain.enums import ReasonCode, Source, VerdictState
 from apgar.domain.models import TurnRow
@@ -89,7 +90,7 @@ async def test_payload_fields_and_demo_exclusion(settings: Settings) -> None:
     await event.upsert_turns([_turn(demo.id, 10_000 + index) for index in range(1000)])
     payload = await build_payload(meta, event, settings, _NOW)
     assert payload["schema"] == 1
-    assert payload["version"] == "0.1.0"
+    assert payload["version"] == __version__
     assert payload["agents_non_demo"] == 1
     assert payload["agents_demo"] == 1
     assert payload["turns_per_day_magnitude"] == 1

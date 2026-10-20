@@ -26,6 +26,9 @@ jobs:
               - 'pyproject.toml'
               - 'uv.lock'
               - 'Dockerfile'
+              - 'docker-compose.yml'
+              - 'scripts/**'
+              - 'ui/package.json'
               - 'Makefile'
               - '.github/workflows/ci.yml'
             ui:

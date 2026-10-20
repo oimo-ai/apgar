@@ -1,0 +1,21 @@
+# Development overlay. Builds the images from this checkout and publishes the
+# ClickHouse and API ports for local scripts. See CONTRIBUTING.md.
+name: apgar-dev
+services:
+  clickhouse:
+    ports: ["8123:8123"]
+  apgar-migrate:
+    build: .
+    image: apgar:dev
+  apgar-api:
+    image: apgar:dev
+    ports: ["8000:8000"]
+    environment:
+      APGAR_ALLOW_INSECURE_SLACK: ${APGAR_ALLOW_INSECURE_SLACK:-false}
+  apgar-worker:
+    image: apgar:dev
+    environment:
+      APGAR_ALLOW_INSECURE_SLACK: ${APGAR_ALLOW_INSECURE_SLACK:-false}
+  apgar-ui:
+    build: { context: ., dockerfile: ui/Dockerfile }
+    image: apgar-ui:dev

@@ -1,5 +1,7 @@
 .PHONY: sync lint format typecheck test-unit test-integration test test-coverage ch-test-up ch-test-down docker-build up down ci ui-install ui-lint ui-typecheck ui-test ui-test-coverage ui-build e2e licenses
 
+COMPOSE_DEV = docker compose -f docker-compose.yml -f docker-compose.dev.yml
+
 sync:
 	uv sync --all-extras
 
@@ -56,10 +58,10 @@ e2e:
 	set -a; . ./.env; set +a; npm run e2e --prefix ui
 
 up:
-	docker compose up -d --build --wait
+	$(COMPOSE_DEV) up -d --build --wait
 
 down:
-	docker compose down -v
+	$(COMPOSE_DEV) down -v
 
 ci:
 	APGAR_TEST_REQUIRE_CLICKHOUSE=1 $(MAKE) lint typecheck ch-test-up test-coverage docker-build ui-install ui-lint ui-typecheck ui-test-coverage ui-build licenses

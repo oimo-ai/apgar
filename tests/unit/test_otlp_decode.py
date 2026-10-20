@@ -104,6 +104,30 @@ def test_invalid_id_length_yields_empty_trace_id() -> None:
     assert spans[0].trace_id == ""
 
 
+def test_invalid_ids_yield_empty_trace_id() -> None:
+    request = ExportTraceServiceRequest()
+    spans = request.resource_spans.add().scope_spans.add().spans
+    for trace_id, span_id, parent_span_id in [
+        (b"\x00" * 16, b"\xab" * 8, b""),
+        (b"\x12" * 16, b"\x00" * 8, b""),
+        (b"\x12" * 16, b"\xab" * 8, b"\xcd" * 2),
+        (b"\x12" * 16, b"\xab" * 8, b"\x00" * 2),
+    ]:
+        span = spans.add()
+        span.trace_id, span.span_id, span.parent_span_id = trace_id, span_id, parent_span_id
+    assert [raw.trace_id for raw in iter_raw_spans(request)] == [""] * 4
+
+
+def test_zero_parent_span_id_is_empty() -> None:
+    request = ExportTraceServiceRequest()
+    span = request.resource_spans.add().scope_spans.add().spans.add()
+    span.trace_id = bytes.fromhex("12" * 16)
+    span.span_id = bytes.fromhex("ab" * 8)
+    span.parent_span_id = b"\x00" * 8
+    (raw,) = iter_raw_spans(request)
+    assert (raw.trace_id, raw.parent_span_id) == ("12" * 16, "")
+
+
 def test_any_value_types() -> None:
     values = AnyValue()
     values.string_value = "s"

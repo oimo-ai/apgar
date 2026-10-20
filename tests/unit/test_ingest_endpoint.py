@@ -492,8 +492,9 @@ async def test_agent_listing_failure_503(settings: Settings) -> None:
     [
         (b"\xff", ""),
         (bytes.fromhex("1f8b0800000000000003ff000000000000000000"), "gzip"),
+        (b"[" * 100_000, ""),
     ],
-    ids=["invalid-utf8", "corrupt-deflate"],
+    ids=["invalid-utf8", "corrupt-deflate", "deeply-nested-json"],
 )
 async def test_malformed_encoding_returns_400(
     settings: Settings, mem_stores: MemStores, body: bytes, encoding: str
@@ -598,3 +599,37 @@ async def test_invalid_ids_drop_only_the_bad_span(
         )
         == before + 1
     )
+
+
+@pytest.mark.parametrize("media", ["application/json", "application/x-protobuf"])
+async def test_zero_parent_span_id_is_a_root(
+    settings: Settings, mem_stores: MemStores, media: str
+) -> None:
+    from google.protobuf.json_format import MessageToJson
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+
+    request = ExportTraceServiceRequest()
+    span = request.resource_spans.add().scope_spans.add().spans.add()
+    span.trace_id = bytes.fromhex("12" * 16)
+    span.span_id = bytes.fromhex("ab" * 8)
+    span.parent_span_id = b"\x00" * 8
+    span.start_time_unix_nano = int(FIXTURE_NOW.timestamp()) * 1_000_000_000
+    body = (
+        request.SerializeToString()
+        if media == "application/x-protobuf"
+        else MessageToJson(request).encode()
+    )
+    event, meta = mem_stores
+    plaintext = await _token(meta, FIXTURE_NOW)
+    token_id = (await meta.list_ingest_tokens())[0].id
+    async with await _client(settings, mem_stores, Clock(FIXTURE_NOW)) as client:
+        response = await client.post(
+            "/v1/traces",
+            content=body,
+            headers={"authorization": f"Bearer {plaintext}", "content-type": media},
+        )
+    assert response.status_code == 200
+    stored = await event.spans_of_trace(token_id, "12" * 16)
+    assert [row.parent_span_id for row in stored] == [""]
+    state = (await event.read_trace_state([(token_id, "12" * 16)]))[(token_id, "12" * 16)]
+    assert state.has_root

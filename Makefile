@@ -1,4 +1,4 @@
-.PHONY: sync lint format typecheck test-unit test-integration test ch-test-up ch-test-down docker-build up down ci ui-install ui-lint ui-typecheck ui-test ui-build e2e licenses
+.PHONY: sync lint format typecheck test-unit test-integration test test-coverage ch-test-up ch-test-down docker-build up down ci ui-install ui-lint ui-typecheck ui-test ui-build e2e licenses
 
 sync:
 	uv sync --all-extras
@@ -19,6 +19,9 @@ test-integration:
 	uv run pytest tests/integration -q -m integration
 
 test: test-unit test-integration
+
+test-coverage:
+	APGAR_TEST_REQUIRE_CLICKHOUSE=1 uv run pytest tests/unit tests/integration -q --cov=apgar --cov-report=term-missing --cov-fail-under=90
 
 ch-test-up:
 	docker compose -f docker-compose.test.yml up -d --wait
@@ -56,7 +59,7 @@ down:
 	docker compose down -v
 
 ci:
-	APGAR_TEST_REQUIRE_CLICKHOUSE=1 $(MAKE) lint typecheck ch-test-up test docker-build ui-install ui-lint ui-typecheck ui-test ui-build licenses
+	APGAR_TEST_REQUIRE_CLICKHOUSE=1 $(MAKE) lint typecheck ch-test-up test-coverage docker-build ui-install ui-lint ui-typecheck ui-test ui-build licenses
 
 licenses:
 	uv run python scripts/check_licenses.py

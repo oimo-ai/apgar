@@ -21,8 +21,7 @@ jobs:
       - run: uv sync --all-extras
       - run: make lint
       - run: make typecheck
-      - run: make test-unit
-      - run: APGAR_TEST_REQUIRE_CLICKHOUSE=1 make test-integration
+      - run: make test-coverage
   docker:
     runs-on: ubuntu-latest
     steps:

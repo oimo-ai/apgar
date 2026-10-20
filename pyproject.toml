@@ -49,3 +49,8 @@ markers = [
   "integration: needs ClickHouse",
   "slow: performance tests",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.1.0",
+]

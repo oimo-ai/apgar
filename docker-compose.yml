@@ -3,7 +3,7 @@
 # Keep local changes in docker-compose.override.yml, so an upgrade can replace this file.
 name: apgar
 x-apgar: &apgar
-  image: ghcr.io/oimo-ai/apgar:0.1.1
+  image: ghcr.io/oimo-ai/apgar:0.1.2
   env_file: .env
   environment: &apgar-env
     APGAR_CLICKHOUSE_URL: http://clickhouse:8123
@@ -54,7 +54,7 @@ services:
       retries: 30
     depends_on: { apgar-migrate: { condition: service_completed_successfully } }
   apgar-ui:
-    image: ghcr.io/oimo-ai/apgar-ui:0.1.1
+    image: ghcr.io/oimo-ai/apgar-ui:0.1.2
     restart: unless-stopped
     ports: ["8080:80"]
     environment: { API_UPSTREAM: http://apgar-api:8000 }

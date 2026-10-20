@@ -63,7 +63,7 @@ def _convert_ids(document: dict[str, Any]) -> None:
 def parse(body: bytes) -> ExportTraceServiceRequest:
     try:
         parsed = json.loads(body)
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError, RecursionError) as exc:
         raise MalformedPayload("malformed json") from exc
     if not isinstance(parsed, dict):
         raise MalformedPayload("malformed json")
@@ -74,5 +74,5 @@ def parse(body: bytes) -> ExportTraceServiceRequest:
             ExportTraceServiceRequest(),
             ignore_unknown_fields=True,
         )
-    except ParseError as exc:
+    except (ParseError, RecursionError) as exc:
         raise MalformedPayload("malformed otlp json") from exc

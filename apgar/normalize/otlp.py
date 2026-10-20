@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import base64
 import gzip
+import zlib
 from collections.abc import Iterator
 from dataclasses import dataclass
+from io import BytesIO
 from typing import Any
 
 from google.protobuf.message import DecodeError
@@ -12,6 +14,10 @@ from opentelemetry.proto.common.v1.common_pb2 import AnyValue
 
 
 class MalformedPayload(Exception):
+    pass
+
+
+class PayloadTooLarge(Exception):
     pass
 
 
@@ -41,13 +47,18 @@ def decode_request(
     body: bytes,
     content_type: str,
     content_encoding: str | None,
+    *,
+    max_body_bytes: int | None = None,
 ) -> ExportTraceServiceRequest:
     payload = body
     if content_encoding and "gzip" in content_encoding.lower():
         try:
-            payload = gzip.decompress(body)
-        except (OSError, EOFError) as exc:
+            with gzip.GzipFile(fileobj=BytesIO(body)) as stream:
+                payload = stream.read(-1 if max_body_bytes is None else max_body_bytes + 1)
+        except (OSError, EOFError, zlib.error) as exc:
             raise MalformedPayload("invalid gzip") from exc
+    if max_body_bytes is not None and len(payload) > max_body_bytes:
+        raise PayloadTooLarge
     media = _media_type(content_type)
     if media == "application/x-protobuf":
         try:
@@ -86,19 +97,29 @@ def _attributes(pairs: Any) -> dict[str, Any]:
     return {item.key: any_value_to_python(item.value) for item in pairs}
 
 
+def _valid_id(value: bytes, size: int) -> bool:
+    return len(value) == size and any(value)
+
+
 def iter_raw_spans(request: ExportTraceServiceRequest) -> Iterator[RawSpan]:
     for resource_spans in request.resource_spans:
         resource = _attributes(resource_spans.resource.attributes)
         for scope_spans in resource_spans.scope_spans:
             for span in scope_spans.spans:
-                trace_id = span.trace_id.hex()
-                span_id = span.span_id.hex()
-                if len(trace_id) != 32 or len(span_id) != 16:
-                    trace_id = ""
+                # An all-zero parent is empty (as in the collector's SpanID.IsEmpty), so
+                # the span is a root; a parent of any other wrong length is corrupt.
+                parent_span_id = (
+                    span.parent_span_id.hex() if _valid_id(span.parent_span_id, 8) else ""
+                )
+                valid = (
+                    _valid_id(span.trace_id, 16)
+                    and _valid_id(span.span_id, 8)
+                    and len(span.parent_span_id) in (0, 8)
+                )
                 yield RawSpan(
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    parent_span_id=span.parent_span_id.hex(),
+                    trace_id=span.trace_id.hex() if valid else "",
+                    span_id=span.span_id.hex(),
+                    parent_span_id=parent_span_id,
                     name=span.name,
                     start_unix_nano=int(span.start_time_unix_nano),
                     end_unix_nano=int(span.end_time_unix_nano),

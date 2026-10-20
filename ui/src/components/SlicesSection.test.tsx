@@ -100,4 +100,21 @@ describe("SlicesSection", () => {
     expect(screen.getByTestId("slices-reason-coverage")).toHaveTextContent("Too few units carry the required input");
     expect(screen.getByTestId("slices-reason-unknown")).toHaveTextContent("Not enough data to compare");
   });
+
+  it("says when nothing can be compared", () => {
+    const { rerender } = render(
+      <SlicesSection
+        items={{ tool_error_rate: item }}
+        metric="tool_error_rate"
+        slices={{
+          tool_error_rate: {
+            tool: { applicable: true, values: [{ value: "sql", candidate: 0, baseline: 0, delta: 0, ci: null, p_value: null, p_adjusted: null, status: "INSUFFICIENT", n_candidate: 1, n_baseline: 1 }] },
+          },
+        }}
+      />,
+    );
+    expect(screen.getByTestId("slices-section")).toHaveTextContent("No slice has enough data to compare yet.");
+    rerender(<SlicesSection items={{}} metric="missing" slices={{}} />);
+    expect(screen.getByTestId("slices-section")).toHaveTextContent("No slices for this metric.");
+  });
 });

@@ -35,6 +35,14 @@ describe("theme", () => {
     document.documentElement.dataset.theme = "";
   });
 
+  it("keeps a stored light, dark, or system choice", () => {
+    installMedia(false);
+    localStorage.setItem("apgar-theme", "light");
+    const { result } = renderHook(() => useTheme());
+    expect(result.current.choice).toBe("light");
+    expect(result.current.resolved).toBe("light");
+  });
+
   it("resolves system from matchMedia by default", () => {
     installMedia(true);
     const { result } = renderHook(() => useTheme());

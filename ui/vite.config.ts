@@ -27,5 +27,23 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     globals: true,
     exclude: ["e2e/**", "node_modules/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/**/*.test.tsx",
+        "src/test/**",
+        "src/api/types.ts",
+        "src/main.tsx",
+        "src/router.tsx",
+        "src/pages/**",
+        "src/components/AppLayout.tsx",
+        "src/components/AddAgentModal.tsx",
+        "src/components/AgentSettings.tsx",
+        "src/components/ThemeToggle.tsx",
+      ],
+    },
   },
 });

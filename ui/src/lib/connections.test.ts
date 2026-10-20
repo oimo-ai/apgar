@@ -10,4 +10,9 @@ describe("newConnectionConfig", () => {
   it("prefills the Slack webhook prefix", () => {
     expect(newConnectionConfig("slack", {})).toEqual({ webhook_url: "https://hooks.slack.com/services/" });
   });
+
+  it("leaves unknown types empty and blanks a missing field", () => {
+    expect(newConnectionConfig("other", { host: "https://example.com" })).toEqual({});
+    expect(newConnectionConfig("webhook", {})).toEqual({ url: "", secret: "" });
+  });
 });

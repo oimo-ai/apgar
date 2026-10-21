@@ -90,6 +90,7 @@ async def test_release_events_round_trip(
     await meta.append_release_event(first)
     events = await meta.release_events(first.agent_id, first.release)
     assert events == [first, second]
+    assert await meta.release_events_since(fixed_now + _STEP) == [second]
 
 
 async def test_evaluation_append_and_list_newest_first(
@@ -104,6 +105,11 @@ async def test_evaluation_append_and_list_newest_first(
     listed = await meta.list_evaluations(older.agent_id, older.release, limit=10)
     assert [item.seed for item in listed] == ["new", "old"]
     assert listed[0] == newer
+    later = make_evaluation(fixed_now + _STEP + _STEP, seed="later", state=VerdictState.PASS)
+    await meta.append_evaluation(later)
+    first = await meta.first_evaluation(older.agent_id, older.release, VerdictState.PASS)
+    assert first == newer
+    assert await meta.first_evaluation(older.agent_id, older.release, VerdictState.FAIL) is None
 
 
 async def test_notification_due_and_update(
@@ -130,6 +136,8 @@ async def test_notification_due_and_update(
     assert await meta.due_notifications(fixed_now, 10) == []
     stored = await meta.get_notification(pending.idempotency_key, NotificationChannel.slack)
     assert stored == sent
+    assert await meta.list_notifications(None, limit=10, created_since=fixed_now) == [sent]
+    assert await meta.list_notifications(None, limit=10, created_since=fixed_now + _STEP) == []
 
 
 async def test_job_requests_pending_and_complete(

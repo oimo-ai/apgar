@@ -262,14 +262,11 @@ export interface SettingsOut {
     endpoint: string;
     last_sent_date: string | null;
     payload_preview: {
-      schema: number;
-      instance_id: string;
-      version: string;
-      agents_non_demo: number;
-      agents_demo: number;
-      turns_per_day_magnitude: number;
-      verdict_counts: Record<string, number>;
-      sent_at: string;
+      api_key: string;
+      event: string;
+      distinct_id: string;
+      timestamp: string;
+      properties: Record<string, string | number | boolean | null>;
     };
   };
   appearance: { default_theme: "system" | "light" | "dark" };

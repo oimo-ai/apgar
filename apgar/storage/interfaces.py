@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from apgar.domain.enums import NotificationChannel, NotificationStatus
+from apgar.domain.enums import NotificationChannel, NotificationStatus, VerdictState
 from apgar.domain.models import (
     Agent,
     Connection,
@@ -123,11 +123,17 @@ class MetaStore(Protocol):
 
     async def release_events(self, agent_id: str, release: str) -> list[ReleaseEvent]: ...
 
+    async def release_events_since(self, since: datetime) -> list[ReleaseEvent]: ...
+
     async def append_evaluation(self, evaluation: VerdictEvaluation) -> None: ...
 
     async def list_evaluations(
         self, agent_id: str, release: str, limit: int
     ) -> list[VerdictEvaluation]: ...
+
+    async def first_evaluation(
+        self, agent_id: str, release: str, state: VerdictState
+    ) -> VerdictEvaluation | None: ...
 
     async def upsert_notification(self, notification: Notification) -> None: ...
 
@@ -142,7 +148,10 @@ class MetaStore(Protocol):
     ) -> list[Notification]: ...
 
     async def list_notifications(
-        self, status: NotificationStatus | None, limit: int
+        self,
+        status: NotificationStatus | None,
+        limit: int,
+        created_since: datetime | None = None,
     ) -> list[Notification]: ...
 
     async def enqueue_job(self, job: JobRequest) -> None: ...

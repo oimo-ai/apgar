@@ -50,6 +50,19 @@ async def test_worker_applies_config_file_at_startup(
     connections = await meta.list_connections()
     assert [connection.name for connection in connections] == ["slack-alerts"]
     assert agent.slack_connection_id == connections[0].id
+    assert await meta.get_setting("telemetry.config_file") == "1"
+
+
+async def test_worker_records_missing_config_file(
+    settings: Settings,
+    mem_stores: tuple[InMemoryEventStore, InMemoryMetaStore],
+    fixed_now: datetime,
+    tmp_path: Path,
+) -> None:
+    event_store, meta = mem_stores
+    missing = settings.model_copy(update={"config_file": str(tmp_path / "apgar.yaml")})
+    await run_worker(missing, event_store, meta, lambda: fixed_now)
+    assert await meta.get_setting("telemetry.config_file") == "0"
 
 
 async def test_refused_worker_does_not_apply_config_file(

@@ -7,6 +7,7 @@ from apgar.storage.interfaces import EventStore, MetaStore
 from apgar.storage.memory import InMemoryEventStore, InMemoryMetaStore
 from tests.factories import (
     make_agent,
+    make_evaluation,
     make_job,
     make_notification,
     make_release,
@@ -117,6 +118,33 @@ async def test_release_events_append_order(
     await meta.append_release_event(second)
     events = await meta.release_events(first.agent_id, first.release)
     assert [event.actor for event in events] == ["first", "second"]
+    recent = await meta.release_events_since(fixed_now + NOW_OFFSET)
+    assert [event.actor for event in recent] == ["second"]
+
+
+async def test_first_evaluation_in_state(
+    mem_stores: tuple[InMemoryEventStore, InMemoryMetaStore],
+    fixed_now: object,
+) -> None:
+    from datetime import datetime
+
+    assert isinstance(fixed_now, datetime)
+    _event_store, meta = mem_stores
+    await meta.append_evaluation(make_evaluation(fixed_now, seed="pending"))
+    await meta.append_evaluation(
+        make_evaluation(fixed_now + NOW_OFFSET * 2, seed="second", state=VerdictState.PASS)
+    )
+    await meta.append_evaluation(
+        make_evaluation(fixed_now + NOW_OFFSET, seed="first", state=VerdictState.PASS)
+    )
+    first = await meta.first_evaluation(
+        "00000000-0000-4000-8000-000000000001", "a1b2c3d", VerdictState.PASS
+    )
+    assert first is not None and first.seed == "first"
+    missing = await meta.first_evaluation(
+        "00000000-0000-4000-8000-000000000001", "a1b2c3d", VerdictState.FAIL
+    )
+    assert missing is None
 
 
 async def test_job_queue_enqueue_pending_complete(
@@ -167,6 +195,27 @@ async def test_notification_upsert_by_key_and_channel(
     stored_webhook = await meta.get_notification(slack.idempotency_key, NotificationChannel.webhook)
     assert stored_slack is not None and stored_slack.attempts == 3
     assert stored_webhook is not None and stored_webhook.attempts == 1
+
+
+async def test_list_notifications_created_since(
+    mem_stores: tuple[InMemoryEventStore, InMemoryMetaStore],
+    fixed_now: object,
+) -> None:
+    from datetime import datetime
+
+    assert isinstance(fixed_now, datetime)
+    _event_store, meta = mem_stores
+    older = make_notification(fixed_now, idempotency_key="older")
+    newer = make_notification(
+        fixed_now + NOW_OFFSET,
+        id="00000000-0000-4000-8000-0000000000n2",
+        idempotency_key="newer",
+    )
+    await meta.upsert_notification(older)
+    await meta.upsert_notification(newer)
+    rows = await meta.list_notifications(None, limit=10, created_since=fixed_now + NOW_OFFSET)
+    assert [row.idempotency_key for row in rows] == ["newer"]
+    assert len(await meta.list_notifications(None, limit=10)) == 2
 
 
 async def test_returned_rows_are_isolated_from_later_mutation(

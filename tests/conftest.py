@@ -36,6 +36,8 @@ def settings() -> Settings:
         admin_token="admin-token-for-tests",
         clickhouse_url="http://localhost:18123",
         public_url="http://localhost:8080",
+        # A .invalid host never resolves, so no test can reach the real telemetry project.
+        telemetry_endpoint="https://telemetry.invalid/i/v0/e/",
     )
 
 

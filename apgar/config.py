@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     late_span_days: int = Field(default=7, ge=1)
     max_body_bytes: int = 33554432
     telemetry: int = 1
-    telemetry_endpoint: str = "#TODO"
+    telemetry_endpoint: str = "https://us.i.posthog.com/i/v0/e/"
     config_file: str = "/etc/apgar/apgar.yaml"
     worker_instance_id: str = Field(default_factory=_default_instance_id)
     assembly_quiet_seconds: int = 60

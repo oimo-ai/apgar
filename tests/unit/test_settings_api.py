@@ -16,10 +16,12 @@ async def test_defaults(app_client: httpx.AsyncClient, admin_headers: dict[str, 
     assert body["telemetry"]["enabled"] is True
     assert body["telemetry"]["disabled_by_environment"] is False
     assert body["telemetry"]["last_sent_date"] is None
+    assert body["telemetry"]["endpoint"] == "https://telemetry.invalid/i/v0/e/"
     preview = body["telemetry"]["payload_preview"]
-    assert preview["agents_demo"] == 0
-    assert preview["agents_non_demo"] == 0
-    assert preview["schema"] == 1
+    assert preview["event"] == "apgar_daily_report"
+    assert preview["properties"]["agents_demo"] == 0
+    assert preview["properties"]["agents_non_demo"] == 0
+    assert preview["properties"]["schema"] == 2
 
 
 async def test_patch_persists(app_client: httpx.AsyncClient, admin_headers: dict[str, str]) -> None:
@@ -106,5 +108,5 @@ async def test_telemetry_default_from_env(
         )
     assert response.json()["telemetry"]["enabled"] is False
     assert response.json()["telemetry"]["disabled_by_environment"] is True
-    assert "agents_demo" in response.json()["telemetry"]["payload_preview"]
-    assert "agents_non_demo" in response.json()["telemetry"]["payload_preview"]
+    assert "agents_demo" in response.json()["telemetry"]["payload_preview"]["properties"]
+    assert "agents_non_demo" in response.json()["telemetry"]["payload_preview"]["properties"]

@@ -18,7 +18,7 @@ from apgar.storage.clickhouse.migrate import (
     is_unknown_database,
 )
 from apgar.storage.interfaces import EventStore, MetaStore
-from apgar.telemetry import log_startup
+from apgar.telemetry import log_startup, record_config_file
 from apgar.worker.heartbeat import AnotherWorkerRunning, clear, guard, write
 from apgar.worker.jobs import register_jobs
 from apgar.worker.reencrypt import reencrypt_connections
@@ -51,8 +51,10 @@ async def run_worker(
     if settings.secret_key_previous:
         await reencrypt_connections(meta_store, box, now)
     config_file = Path(settings.config_file)
-    if config_file.exists():
+    uses_config_file = config_file.exists()
+    if uses_config_file:
         await apply(config_file, settings, meta_store, box, clock())
+    await record_config_file(meta_store, uses_config_file, clock())
     log_startup(settings)
     start_http_server(settings.worker_metrics_port)
     await write(meta_store, settings.worker_instance_id, now)

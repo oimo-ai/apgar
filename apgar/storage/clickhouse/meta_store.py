@@ -850,6 +850,17 @@ class ClickHouseMetaStore:
         )
         return [_event_from(row) for row in rows]
 
+    async def release_events_since(self, since: datetime) -> list[ReleaseEvent]:
+        rows = await self._select(
+            "release_events",
+            _RELEASE_EVENT_COLUMNS,
+            "ts >= {since:DateTime64(3)}",
+            {"since": since},
+            final=False,
+            order="agent_id, release, ts, `type`",
+        )
+        return [_event_from(row) for row in rows]
+
     async def append_evaluation(self, evaluation: VerdictEvaluation) -> None:
         await self._insert(
             "verdict_evaluations", _EVALUATION_COLUMNS, _evaluation_values(evaluation)
@@ -868,6 +879,23 @@ class ClickHouseMetaStore:
             limit=limit,
         )
         return [_evaluation_from(row) for row in rows]
+
+    async def first_evaluation(
+        self, agent_id: str, release: str, state: VerdictState
+    ) -> VerdictEvaluation | None:
+        rows = await self._select(
+            "verdict_evaluations",
+            _EVALUATION_COLUMNS,
+            "agent_id = {agent_id:String} AND release = {release:String}"
+            " AND state = {state:String}",
+            {"agent_id": agent_id, "release": release, "state": state.value},
+            final=False,
+            order="evaluated_at",
+            limit=1,
+        )
+        if not rows:
+            return None
+        return _evaluation_from(rows[0])
 
     async def upsert_notification(self, notification: Notification) -> None:
         await self._insert(
@@ -906,13 +934,19 @@ class ClickHouseMetaStore:
         return [_notification_from(row) for row in rows]
 
     async def list_notifications(
-        self, status: NotificationStatus | None, limit: int
+        self,
+        status: NotificationStatus | None,
+        limit: int,
+        created_since: datetime | None = None,
     ) -> list[Notification]:
         clauses = ["1"]
         params: dict[str, Any] = {}
         if status is not None:
             clauses.append("status = {status:String}")
             params["status"] = status.value
+        if created_since is not None:
+            clauses.append("created_at >= {created_since:DateTime64(3)}")
+            params["created_since"] = created_since
         rows = await self._select(
             "notifications",
             _NOTIFICATION_COLUMNS,

@@ -10,6 +10,7 @@ from apgar.domain.enums import (
     NotificationChannel,
     NotificationStatus,
     SpanStatus,
+    VerdictState,
 )
 from apgar.domain.models import (
     Agent,
@@ -511,6 +512,11 @@ class InMemoryMetaStore:
         rows.sort(key=lambda event: (event.ts, event.type.value))
         return _copies(rows)
 
+    async def release_events_since(self, since: datetime) -> list[ReleaseEvent]:
+        rows = [event for event in self._release_events if event.ts >= since]
+        rows.sort(key=lambda event: (event.agent_id, event.release, event.ts, event.type.value))
+        return _copies(rows)
+
     async def append_evaluation(self, evaluation: VerdictEvaluation) -> None:
         self._evaluations.append(_copy(evaluation))
 
@@ -524,6 +530,18 @@ class InMemoryMetaStore:
         ]
         rows.sort(key=lambda item: item.evaluated_at, reverse=True)
         return _copies(rows[:limit])
+
+    async def first_evaluation(
+        self, agent_id: str, release: str, state: VerdictState
+    ) -> VerdictEvaluation | None:
+        rows = [
+            item
+            for item in self._evaluations
+            if item.agent_id == agent_id and item.release == release and item.state == state
+        ]
+        if not rows:
+            return None
+        return _copy(min(rows, key=lambda item: item.evaluated_at))
 
     async def upsert_notification(self, notification: Notification) -> None:
         key = (notification.idempotency_key, notification.channel)
@@ -554,11 +572,16 @@ class InMemoryMetaStore:
         return _copies(rows[:limit])
 
     async def list_notifications(
-        self, status: NotificationStatus | None, limit: int
+        self,
+        status: NotificationStatus | None,
+        limit: int,
+        created_since: datetime | None = None,
     ) -> list[Notification]:
         rows = list(self._notifications.values())
         if status is not None:
             rows = [item for item in rows if item.status == status]
+        if created_since is not None:
+            rows = [item for item in rows if item.created_at >= created_since]
         rows.sort(key=lambda item: item.created_at, reverse=True)
         return _copies(rows[:limit])
 

@@ -70,6 +70,7 @@ def test_defaults_match_conventions(monkeypatch: pytest.MonkeyPatch) -> None:
     assert loaded.assembly_quiet_seconds == 60
     assert loaded.bootstrap_chunk == 256
     assert loaded.telemetry == 1
+    assert loaded.telemetry_endpoint == "https://us.i.posthog.com/i/v0/e/"
     assert loaded.evaluator_processes == max(1, (os.cpu_count() or 2) - 1)
 
 

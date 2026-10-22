@@ -1,11 +1,12 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { PlugZap, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Check, PlugZap, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ApiError, apiFetch } from "@/api/client";
 import { useAgents, useConnections, useIngestTokens, useSettings } from "@/api/queries";
-import type { ConnectionOut, RetentionSettings } from "@/api/types";
+import type { ConnectionOut, RetentionSettings, SettingsOut } from "@/api/types";
 import { Mono } from "@/components/Mono";
 import { NotificationsTab } from "@/components/NotificationsTab";
 import { ErrorState, Loading } from "@/components/States";
@@ -37,10 +38,8 @@ const TABS = [
   ["connections", "Connections", "settings-tab-connections"],
   ["ingest-tokens", "Ingest tokens", "settings-tab-ingest-tokens"],
   ["agents", "Agents", "settings-tab-agents"],
-  ["retention", "Retention", "settings-tab-retention"],
-  ["appearance", "Appearance", "settings-tab-appearance"],
-  ["telemetry", "Telemetry", "settings-tab-telemetry"],
   ["notifications", "Notifications", "settings-tab-notifications"],
+  ["general", "General", "settings-tab-general"],
 ] as const;
 
 const SECRET_FIELDS = new Set(["secret_key", "secret"]);
@@ -143,10 +142,8 @@ export function SettingsPage() {
             onNavigate={(next) => void navigate({ to: "/settings", search: { tab: "agents", ...next }, replace: true })}
           />
         ) : null}
-        {tab === "retention" ? <RetentionTab /> : null}
-        {tab === "appearance" ? <AppearanceTab /> : null}
-        {tab === "telemetry" ? <TelemetryTab /> : null}
         {tab === "notifications" ? <NotificationsTab /> : null}
+        {tab === "general" ? <GeneralTab settings={settings.data} /> : null}
       </div>
     </div>
   );
@@ -803,158 +800,143 @@ function IngestTokensTab() {
   );
 }
 
-function RetentionTab() {
-  const settings = useSettings();
-  const [values, setValues] = useState<Partial<RetentionSettings>>({});
-  useEffect(() => {
-    if (settings.data) {
-      setValues(settings.data.retention);
+type GeneralDraft = {
+  retention: RetentionSettings;
+  telemetry: boolean;
+};
+
+function readGeneral(settings: SettingsOut): GeneralDraft {
+  return {
+    retention: settings.retention,
+    telemetry: settings.telemetry.enabled,
+  };
+}
+
+function GeneralTab({ settings }: { settings: SettingsOut }) {
+  const queryClient = useQueryClient();
+  const [base, setBase] = useState(() => readGeneral(settings));
+  const [draft, setDraft] = useState(base);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const envDisabled = settings.telemetry.disabled_by_environment;
+  const retentionChanged = RETENTION_FIELDS.some((field) => draft.retention[field.name] !== base.retention[field.name]);
+  const dirty = retentionChanged || draft.telemetry !== base.telemetry;
+
+  function change(patch: Partial<GeneralDraft>): void {
+    setSaved(false);
+    setDraft((current) => ({ ...current, ...patch }));
+  }
+
+  async function save(): Promise<void> {
+    const body: Record<string, unknown> = {};
+    if (retentionChanged) {
+      body.retention = draft.retention;
     }
-  }, [settings.data]);
-  return (
-    <Panel>
-      <form
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          void apiFetch("/api/v1/settings", { method: "PATCH", body: JSON.stringify({ retention: values }) })
-            .then(() => {
-              toast("Retention saved");
-              return settings.refetch();
-            })
-            .catch((error: unknown) => failToast(error));
-        }}
-      >
-        <PanelHeader title="Retention" description="How long trace data and verdict history are kept." />
-        <PanelBody className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] gap-4">
-          {RETENTION_FIELDS.map((field) => (
-            <Field key={field.name} label={field.label} htmlFor={`retention-${field.name}`} info={field.info}>
-              <Suffixed suffix="days">
-                <Input
-                  id={`retention-${field.name}`}
-                  data-testid={`retention-${field.name}`}
-                  className="num w-24 text-right"
-                  type="number"
-                  min={
-                    field.name === "verdict_history_days"
-                      ? (values.trace_data_days ?? RETENTION_MIN_DAYS)
-                      : RETENTION_MIN_DAYS
-                  }
-                  max={RETENTION_MAX_DAYS}
-                  value={values[field.name] ?? ""}
-                  onChange={(event) => {
-                    if (event.target.value === "") {
-                      return;
-                    }
-                    setValues((current) => ({ ...current, [field.name]: Number(event.target.value) }));
-                  }}
-                />
-              </Suffixed>
-            </Field>
-          ))}
-        </PanelBody>
-        <PanelFooter>
-          <Button type="submit" data-testid="retention-save">Save</Button>
-        </PanelFooter>
-      </form>
-    </Panel>
-  );
-}
+    if (draft.telemetry !== base.telemetry) {
+      body.telemetry = { enabled: draft.telemetry };
+    }
+    setSaving(true);
+    try {
+      const updated = await apiFetch<SettingsOut>("/api/v1/settings", { method: "PATCH", body: JSON.stringify(body) });
+      const next = readGeneral(updated);
+      setBase(next);
+      setDraft(next);
+      setSaved(true);
+      toast("Settings saved");
+      queryClient.setQueryData(["settings"], updated);
+    } catch (error) {
+      failToast(error);
+    } finally {
+      setSaving(false);
+    }
+  }
 
-function AppearanceTab() {
-  const settings = useSettings();
-  const [theme, setTheme] = useState(settings.data?.appearance.default_theme ?? "system");
   return (
-    <Panel>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void apiFetch("/api/v1/settings", {
-            method: "PATCH",
-            body: JSON.stringify({ appearance: { default_theme: theme } }),
-          }).then(() => {
-            toast("Appearance saved");
-            return settings.refetch();
-          }).catch((error: unknown) => failToast(error));
-        }}
-      >
-        <PanelHeader title="Appearance" description="The theme new browsers start with. Each person can still pick their own from the top bar." />
-        <PanelBody>
-          <Field label="Default theme" htmlFor="appearance-default-theme" className="max-w-[20rem]">
-            <Select id="appearance-default-theme" data-testid="appearance-default-theme" value={theme} onChange={(event) => setTheme(event.target.value as "system" | "light" | "dark")}>
-              <option value="system">system</option>
-              <option value="light">light</option>
-              <option value="dark">dark</option>
-            </Select>
-          </Field>
-        </PanelBody>
-        <PanelFooter>
-          <Button type="submit">Save</Button>
-        </PanelFooter>
-      </form>
-    </Panel>
-  );
-}
-
-function TelemetryTab() {
-  const settings = useSettings();
-  const telemetry = settings.data?.telemetry;
-  const enabled = telemetry?.enabled ?? true;
-  const envDisabled = telemetry?.disabled_by_environment ?? false;
-  return (
-    <>
+    <form
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (dirty) {
+          void save();
+        }
+      }}
+    >
       <Panel>
-        <div className="flex items-start justify-between gap-4 px-4 py-3.5">
-          <div>
-            <h3 className="m-0 text-sm font-semibold">Anonymous usage telemetry</h3>
-            <p className="m-0 mt-0.5 text-xs text-muted-foreground">
-              Sends one small daily report. No prompts, completions, names, or identifiers of your users.
-            </p>
-          </div>
-          <span className="flex items-center gap-2 text-sm">
-            {enabled ? "On" : "Off"}
-            <Switch
-              testId="telemetry-toggle"
-              label="Telemetry"
-              checked={enabled}
-              disabled={envDisabled}
-              onCheckedChange={(next) => {
-                if (envDisabled) {
-                  return;
-                }
-                void apiFetch("/api/v1/settings", {
-                  method: "PATCH",
-                  body: JSON.stringify({ telemetry: { enabled: next } }),
-                }).then(() => settings.refetch()).catch((error: unknown) => failToast(error));
-              }}
-            />
-          </span>
-        </div>
-      </Panel>
-      {envDisabled ? (
-        <Notice tone="warning" title="Telemetry is disabled by environment">
-          <Mono>APGAR_TELEMETRY=0</Mono> is set on the server, so the toggle above has no effect.
-        </Notice>
-      ) : null}
-      <Panel testId="telemetry-payload">
-        <PanelHeader title="Payload preview" description="The exact report the next send would contain." />
-        <PanelBody className="flex flex-col gap-3">
-          <dl className="m-0 grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1.5 text-sm">
-            <dt className="text-muted-foreground">Endpoint</dt>
-            <dd className="m-0 min-w-0 break-all">
-              <Mono>{telemetry?.endpoint}</Mono>
-            </dd>
-            <dt className="text-muted-foreground">Last sent</dt>
-            <dd className="m-0">
-              <When iso={telemetry?.last_sent_date} />
-            </dd>
-          </dl>
-          <pre className="code-block">{JSON.stringify(telemetry?.payload_preview ?? null, null, 2)}</pre>
-          <Notice>
-            Disable telemetry with <Mono>APGAR_TELEMETRY=0</Mono>. The environment variable wins over this toggle.
-          </Notice>
+        <PanelHeader title="General" description="Data retention and usage telemetry for this instance." />
+        <PanelBody className="flex flex-col gap-6">
+          <fieldset className="m-0 grid gap-4 border-0 p-0 sm:grid-cols-2">
+            <legend className="mb-3 p-0 text-xs font-semibold text-muted-foreground">Retention</legend>
+            {RETENTION_FIELDS.map((field) => (
+              <Field key={field.name} label={field.label} htmlFor={`retention-${field.name}`} info={field.info}>
+                <Suffixed suffix="days">
+                  <Input
+                    id={`retention-${field.name}`}
+                    data-testid={`retention-${field.name}`}
+                    className="num w-24 text-right"
+                    type="number"
+                    min={field.name === "verdict_history_days" ? draft.retention.trace_data_days : RETENTION_MIN_DAYS}
+                    max={RETENTION_MAX_DAYS}
+                    value={draft.retention[field.name]}
+                    onChange={(event) => {
+                      if (event.target.value === "") {
+                        return;
+                      }
+                      change({ retention: { ...draft.retention, [field.name]: Number(event.target.value) } });
+                    }}
+                  />
+                </Suffixed>
+              </Field>
+            ))}
+          </fieldset>
+          <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
+            <legend className="mb-3 p-0 text-xs font-semibold text-muted-foreground">Telemetry</legend>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="m-0 text-sm font-medium">Anonymous usage telemetry</p>
+                <p className="m-0 mt-0.5 text-xs text-muted-foreground">
+                  Sends one small daily report. No prompts, completions, names, or identifiers of your users.
+                </p>
+              </div>
+              <span className="flex items-center gap-2 text-sm">
+                {draft.telemetry ? "On" : "Off"}
+                <Switch
+                  testId="telemetry-toggle"
+                  label="Anonymous usage telemetry"
+                  checked={draft.telemetry}
+                  disabled={envDisabled}
+                  onCheckedChange={(next) => change({ telemetry: next })}
+                />
+              </span>
+            </div>
+            {envDisabled ? (
+              <Notice tone="warning" title="Telemetry is disabled by environment">
+                <Mono>APGAR_TELEMETRY=0</Mono> is set on the server, so this toggle has no effect.
+              </Notice>
+            ) : null}
+          </fieldset>
         </PanelBody>
+        <PanelFooter>
+          <span className="mr-auto text-sm">
+            {saved && !dirty ? (
+              <span data-testid="general-saved" className="inline-flex items-center gap-1.5 text-pass">
+                <Check size={14} strokeWidth={2} aria-hidden="true" />
+                Saved
+              </span>
+            ) : dirty ? (
+              <span data-testid="general-dirty" className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <span className="size-2 rounded-full bg-inconclusive" aria-hidden="true" />
+                Unsaved changes
+              </span>
+            ) : null}
+          </span>
+          <Button type="button" variant="outline" disabled={!dirty || saving} onClick={() => setDraft(base)}>
+            Discard
+          </Button>
+          <Button type="submit" data-testid="general-save" disabled={!dirty || saving}>
+            {saving ? "Saving" : "Save"}
+          </Button>
+        </PanelFooter>
       </Panel>
-    </>
+    </form>
   );
 }

@@ -14,10 +14,9 @@ from apgar.domain.retention import (
     retention_value_error,
     verdict_history_error,
 )
-from apgar.telemetry import build_payload, env_disables_telemetry, telemetry_is_enabled
+from apgar.telemetry import env_disables_telemetry, telemetry_is_enabled
 
 router = APIRouter()
-_THEMES = {"system", "light", "dark"}
 
 
 class SettingsPatch(BaseModel):
@@ -25,7 +24,6 @@ class SettingsPatch(BaseModel):
 
     retention: dict[str, int] | None = None
     telemetry: dict[str, Any] | None = None
-    appearance: dict[str, str] | None = None
 
 
 async def _retention(request: Request) -> dict[str, int]:
@@ -42,26 +40,12 @@ async def get_settings(request: Request) -> dict[str, Any]:
     await authorize(request)
     meta = request.app.state.meta_store
     settings = request.app.state.settings
-    endpoint = await meta.get_setting("telemetry.endpoint")
-    last_sent = await meta.get_setting("telemetry.last_sent_date")
-    theme = await meta.get_setting("appearance.default_theme")
-    enabled = await telemetry_is_enabled(settings, meta)
-    preview = await build_payload(
-        meta,
-        request.app.state.event_store,
-        settings,
-        request.app.state.clock(),
-    )
     return {
         "retention": await _retention(request),
         "telemetry": {
-            "enabled": enabled,
+            "enabled": await telemetry_is_enabled(settings, meta),
             "disabled_by_environment": env_disables_telemetry(settings),
-            "endpoint": endpoint or settings.telemetry_endpoint,
-            "last_sent_date": last_sent,
-            "payload_preview": preview,
         },
-        "appearance": {"default_theme": theme or "system"},
     }
 
 
@@ -97,14 +81,4 @@ async def patch_settings(request: Request, body: SettingsPatch) -> dict[str, Any
             if not isinstance(endpoint, str) or not endpoint:
                 raise ApiError("validation_error", 422, "telemetry.endpoint: must be a URL")
             await meta.set_setting("telemetry.endpoint", endpoint, now)
-    if body.appearance is not None:
-        theme = body.appearance.get("default_theme")
-        if theme is not None:
-            if theme not in _THEMES:
-                raise ApiError(
-                    "validation_error",
-                    422,
-                    "appearance.default_theme: must be system, light, or dark",
-                )
-            await meta.set_setting("appearance.default_theme", theme, now)
     return await get_settings(request)

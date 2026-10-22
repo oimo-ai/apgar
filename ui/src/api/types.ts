@@ -259,17 +259,7 @@ export interface SettingsOut {
   telemetry: {
     enabled: boolean;
     disabled_by_environment: boolean;
-    endpoint: string;
-    last_sent_date: string | null;
-    payload_preview: {
-      api_key: string;
-      event: string;
-      distinct_id: string;
-      timestamp: string;
-      properties: Record<string, string | number | boolean | null>;
-    };
   };
-  appearance: { default_theme: "system" | "light" | "dark" };
 }
 
 export interface StatusOut {

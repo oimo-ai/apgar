@@ -3,12 +3,12 @@ import { Bot, Settings } from "lucide-react";
 import { useEffect } from "react";
 
 import { apiFetch } from "@/api/client";
-import { useAgent, useSettings } from "@/api/queries";
+import { useAgent } from "@/api/queries";
 import { ApgarMark } from "@/components/ApgarMark";
 import { DegradedBanner } from "@/components/DegradedBanner";
 import { DemoBadge } from "@/components/DemoBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { applyChoice, readChoice } from "@/lib/theme";
+import { readChoice } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -45,20 +45,6 @@ export function AppLayout() {
   const params = useParams({ strict: false });
   const agentName = typeof params.agent === "string" ? params.agent : "";
   const agent = useAgent(agentName);
-  const settings = useSettings();
-
-  useEffect(() => {
-    if (!settings.data) {
-      return;
-    }
-    if (localStorage.getItem("apgar-theme") != null) {
-      return;
-    }
-    const theme = settings.data.appearance.default_theme;
-    if (theme === "light" || theme === "dark" || theme === "system") {
-      applyChoice(theme);
-    }
-  }, [settings.data]);
 
   useEffect(() => {
     const choice = readChoice();

@@ -73,6 +73,17 @@ def _window(
     return start, end, covered or None
 
 
+def _ran_a_day(
+    activity: dict[str, ReleaseActivity], release: Release, start: datetime, end: datetime
+) -> bool:
+    seen = activity.get(release.release)
+    if seen is None:
+        return False
+    first = max(release.first_seen, start)
+    last = min(seen.last_seen, end)
+    return last - first >= timedelta(hours=24)
+
+
 def select_baseline(
     candidate: Release,
     releases: list[Release],
@@ -99,6 +110,9 @@ def select_baseline(
             return None
         pick = max(pool, key=lambda release: _activity_key(activity, release))
     start, end, hours = _window(candidate, window_end)
+    # A baseline that ran under a day lacks most hours, so matching them would empty it.
+    if hours is not None and not _ran_a_day(activity, pick, start, end):
+        hours = None
     return BaselineChoice(
         release=pick.release,
         unverified=not ended_clean(pick),

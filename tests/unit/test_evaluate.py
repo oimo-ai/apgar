@@ -114,6 +114,55 @@ async def test_insufficient_baseline(settings: Settings) -> None:
     assert result.reason is ReasonCode.insufficient_baseline
 
 
+async def _hour_matching_case(
+    settings: Settings, base_first_seen: timedelta, base_batches: list[timedelta]
+) -> VerdictEvaluation:
+    event, meta = InMemoryEventStore(), InMemoryMetaStore()
+    agent = _agent(NOW)
+    await meta.upsert_agent(agent)
+    from apgar.worker.jobs.release_discovery import new_release
+
+    base_start = NOW - base_first_seen
+    cand_start = NOW - timedelta(hours=1)
+    await meta.upsert_release(
+        new_release("agent-1", "base", base_start, ReasonCode.no_baseline, base_start)
+    )
+    await meta.upsert_release(
+        new_release("agent-1", "cand", cand_start, ReasonCode.insufficient_sample, cand_start)
+    )
+    rows = []
+    for batch, offset in enumerate(base_batches):
+        for index in range(60):
+            number = batch * 60 + index
+            rows.append(_turn("base", number, number // 5, error=False, start=NOW - offset))
+    for index in range(50):
+        rows.append(_turn("cand", index, index // 5, error=False, start=cand_start))
+    await event.upsert_turns([turn for turn, _tool in rows])
+    await event.insert_tool_calls([tool for _turn_row, tool in rows])
+    release = await meta.get_release("agent-1", "cand")
+    assert release is not None
+    return await _evaluator(event, meta, settings).evaluate_release(agent, release, NOW, False)
+
+
+async def test_short_lived_baseline_is_compared_without_hour_matching(
+    settings: Settings,
+) -> None:
+    # The baseline ran 10:00 to 11:00 and the candidate took over at 11:00.
+    result = await _hour_matching_case(settings, timedelta(hours=2), [timedelta(hours=2)])
+    assert result.reason is not ReasonCode.insufficient_baseline
+    assert result.n_baseline_turns == 60
+
+
+async def test_baseline_that_ran_a_day_keeps_hour_matching(settings: Settings) -> None:
+    # Only the batch at 11:00 two days ago shares an hour with the candidate.
+    result = await _hour_matching_case(
+        settings,
+        timedelta(days=3),
+        [timedelta(days=2, hours=1), timedelta(days=2, hours=-3)],
+    )
+    assert result.n_baseline_turns == 60
+
+
 async def test_baseline_needs_the_minimum_sessions_too(settings: Settings) -> None:
     event, meta = InMemoryEventStore(), InMemoryMetaStore()
     agent = _agent(NOW)

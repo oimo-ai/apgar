@@ -95,7 +95,7 @@ export function AppLayout() {
               );
             })}
           </div>
-          <p className="app-sidebar-foot">Self hosted. Prompt and completion text are not stored by default.</p>
+          <p className="app-sidebar-foot">Self hosted · v{__APP_VERSION__}</p>
         </nav>
         <div className="app-main">
           <header className="app-topbar">

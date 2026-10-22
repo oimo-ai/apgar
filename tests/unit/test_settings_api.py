@@ -12,16 +12,7 @@ async def test_defaults(app_client: httpx.AsyncClient, admin_headers: dict[str, 
     response = await app_client.get("/api/v1/settings", headers=admin_headers)
     body = response.json()
     assert body["retention"] == {"trace_data_days": 90, "verdict_history_days": 400}
-    assert body["appearance"]["default_theme"] == "system"
-    assert body["telemetry"]["enabled"] is True
-    assert body["telemetry"]["disabled_by_environment"] is False
-    assert body["telemetry"]["last_sent_date"] is None
-    assert body["telemetry"]["endpoint"] == "https://telemetry.invalid/i/v0/e/"
-    preview = body["telemetry"]["payload_preview"]
-    assert preview["event"] == "apgar_daily_report"
-    assert preview["properties"]["agents_demo"] == 0
-    assert preview["properties"]["agents_non_demo"] == 0
-    assert preview["properties"]["schema"] == 2
+    assert body["telemetry"] == {"enabled": True, "disabled_by_environment": False}
 
 
 async def test_patch_persists(app_client: httpx.AsyncClient, admin_headers: dict[str, str]) -> None:
@@ -31,7 +22,6 @@ async def test_patch_persists(app_client: httpx.AsyncClient, admin_headers: dict
         json={
             "retention": {"trace_data_days": 30},
             "telemetry": {"enabled": False},
-            "appearance": {"default_theme": "dark"},
         },
     )
     assert patched.status_code == 200
@@ -39,7 +29,6 @@ async def test_patch_persists(app_client: httpx.AsyncClient, admin_headers: dict
     assert body["retention"]["trace_data_days"] == 30
     assert body["retention"]["verdict_history_days"] == 400
     assert body["telemetry"]["enabled"] is False
-    assert body["appearance"]["default_theme"] == "dark"
     again = await app_client.get("/api/v1/settings", headers=admin_headers)
     assert again.json()["retention"]["trace_data_days"] == 30
 
@@ -56,10 +45,10 @@ async def test_validation_bounds(
     old_key = await app_client.patch(
         "/api/v1/settings", headers=admin_headers, json={"retention": {"spans_days": 90}}
     )
-    theme = await app_client.patch(
+    appearance = await app_client.patch(
         "/api/v1/settings",
         headers=admin_headers,
-        json={"appearance": {"default_theme": "purple"}},
+        json={"appearance": {"default_theme": "dark"}},
     )
     assert low.status_code == 422
     assert "must be in [21, 3650]" in low.json()["error"]["message"]
@@ -67,7 +56,7 @@ async def test_validation_bounds(
     assert high.status_code == 422
     assert old_key.status_code == 422
     assert old_key.json()["error"]["message"] == "retention: unknown field spans_days"
-    assert theme.status_code == 422
+    assert appearance.status_code == 422
 
 
 async def test_verdict_history_cannot_be_shorter_than_trace_data(
@@ -106,7 +95,4 @@ async def test_telemetry_default_from_env(
             "/api/v1/settings",
             headers={"Authorization": f"Bearer {settings.admin_token}"},
         )
-    assert response.json()["telemetry"]["enabled"] is False
-    assert response.json()["telemetry"]["disabled_by_environment"] is True
-    assert "agents_demo" in response.json()["telemetry"]["payload_preview"]["properties"]
-    assert "agents_non_demo" in response.json()["telemetry"]["payload_preview"]["properties"]
+    assert response.json()["telemetry"] == {"enabled": False, "disabled_by_environment": True}

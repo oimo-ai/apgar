@@ -57,7 +57,7 @@ test("Agent tolerance persisted", async ({ page }) => {
   await expect(page.getByTestId("agent-settings-saved")).toBeVisible();
 });
 
-test("Retention and telemetry", async ({ page }) => {
+test("General settings", async ({ page }) => {
   await api(page, "/api/v1/settings", {
     method: "PATCH",
     data: {
@@ -65,7 +65,7 @@ test("Retention and telemetry", async ({ page }) => {
       telemetry: { enabled: true },
     },
   });
-  await page.goto("/settings?tab=retention");
+  await page.goto("/settings?tab=general");
   await expect(page.getByTestId("retention-trace_data_days")).toHaveValue("90");
   await expect(page.getByTestId("retention-verdict_history_days")).toHaveValue("400");
   await page.getByRole("button", { name: "About Trace Data" }).hover();
@@ -73,24 +73,27 @@ test("Retention and telemetry", async ({ page }) => {
   await page.getByRole("button", { name: "About Verdict History" }).hover();
   await expect(page.getByRole("tooltip")).toContainText("Cannot be shorter than Trace Data");
   await page.getByTestId("retention-trace_data_days").fill("20");
-  await page.getByTestId("retention-save").click();
+  await page.getByTestId("general-save").click();
   await expect(page.locator("[data-sonner-toast]").last()).toContainText("must be in [21, 3650]");
   await expect(page.locator("[data-sonner-toast]").last()).toContainText("conversation history");
   await page.reload();
   await expect(page.getByTestId("retention-trace_data_days")).toHaveValue("90");
   await page.getByTestId("retention-verdict_history_days").fill("50");
-  await page.getByTestId("retention-save").click();
+  await page.getByTestId("general-save").click();
   await expect(page.locator("[data-sonner-toast]").last()).toContainText("trace_data_days (90)");
   await page.getByTestId("retention-trace_data_days").fill("120");
   await page.getByTestId("retention-verdict_history_days").fill("400");
-  await page.getByTestId("retention-save").click();
+  await page.getByTestId("general-save").click();
+  await expect(page.getByTestId("general-saved")).toBeVisible();
   await page.reload();
   await expect(page.getByTestId("retention-trace_data_days")).toHaveValue("120");
   await page.getByTestId("retention-trace_data_days").fill("90");
-  await page.getByTestId("retention-save").click();
-  await page.getByTestId("settings-tab-telemetry").click();
+  await page.getByTestId("general-save").click();
+  await expect(page.getByTestId("general-saved")).toBeVisible();
   await page.getByTestId("telemetry-toggle").click();
   await expect(page.getByTestId("telemetry-toggle")).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByTestId("general-dirty")).toBeVisible();
+  await page.getByTestId("general-save").click();
   await expect.poll(async () => {
     const response = await api(page, "/api/v1/settings");
     const body = (await response.json()) as { telemetry: { enabled: boolean } };
@@ -98,27 +101,10 @@ test("Retention and telemetry", async ({ page }) => {
   }).toBe(false);
   await page.getByTestId("telemetry-toggle").click();
   await expect(page.getByTestId("telemetry-toggle")).toHaveAttribute("aria-checked", "true");
+  await page.getByTestId("general-save").click();
   await expect.poll(async () => {
     const response = await api(page, "/api/v1/settings");
     const body = (await response.json()) as { telemetry: { enabled: boolean } };
     return body.telemetry.enabled;
   }).toBe(true);
-});
-
-test("Appearance default", async ({ page }) => {
-  await page.goto("/settings?tab=appearance");
-  await page.getByTestId("appearance-default-theme").selectOption("dark");
-  await page.getByRole("button", { name: "Save" }).click();
-  await expect.poll(async () => {
-    const response = await api(page, "/api/v1/settings");
-    const body = (await response.json()) as { appearance: { default_theme: string } };
-    return body.appearance.default_theme;
-  }).toBe("dark");
-  await page.getByTestId("appearance-default-theme").selectOption("system");
-  await page.getByRole("button", { name: "Save" }).click();
-  await expect.poll(async () => {
-    const response = await api(page, "/api/v1/settings");
-    const body = (await response.json()) as { appearance: { default_theme: string } };
-    return body.appearance.default_theme;
-  }).toBe("system");
 });

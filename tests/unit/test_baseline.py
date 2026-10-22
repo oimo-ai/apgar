@@ -94,16 +94,39 @@ def test_ended_clean_rules() -> None:
     assert not ended_clean(_release("r", 1, VerdictState.INCONCLUSIVE, ReasonCode.pass_candidate))
 
 
-def test_hour_matching_is_always_applied_under_one_day() -> None:
+def test_hour_matching_is_applied_under_one_day() -> None:
     prior = _release("prior", 3, VerdictState.PASS, ReasonCode.confirmed, True)
     candidate = _release("cand", 0)
-    short = select_baseline(candidate, [prior, candidate], _user(), {}, NOW + timedelta(hours=2))
-    wide = select_baseline(candidate, [prior, candidate], _user(), {}, NOW + timedelta(hours=30))
+    activity = _activity(prior=1)
+    releases = [prior, candidate]
+    short = select_baseline(candidate, releases, _user(), activity, NOW + timedelta(hours=2))
+    wide = select_baseline(candidate, releases, _user(), activity, NOW + timedelta(hours=30))
     assert short is not None
     assert short.hour_of_day_filter == frozenset({12, 13})
     assert short.window_start == NOW - timedelta(days=7)
     assert short.window_end == NOW
     assert wide is not None and wide.hour_of_day_filter is None
+
+
+def test_hour_matching_needs_a_baseline_that_ran_a_day_in_the_window() -> None:
+    candidate = _release("cand", 0)
+    when = NOW + timedelta(hours=2)
+    cases: list[tuple[float, dict[str, float], frozenset[int] | None]] = [
+        (1 / 24, {"prior": 0}, None),
+        (1, {"prior": 0}, frozenset({12, 13})),
+        (1, {"prior": 1 / 60}, None),
+        (2 / 24, {"prior": -5}, None),
+        (10, {"prior": 6.5 * 24}, None),
+        (10, {"prior": 5 * 24}, frozenset({12, 13})),
+        (3, {}, None),
+    ]
+    for days_ago, last_seen_hours_ago, expected in cases:
+        prior = _release("prior", days_ago, VerdictState.PASS, ReasonCode.confirmed, True)
+        activity = _activity(**last_seen_hours_ago)
+        for user in (_user(), _user("prior")):
+            choice = select_baseline(candidate, [prior, candidate], user, activity, when)
+            assert choice is not None and choice.release == "prior"
+            assert choice.hour_of_day_filter == expected, (days_ago, last_seen_hours_ago)
 
 
 def test_manual_baseline_uses_the_previous_release_window() -> None:

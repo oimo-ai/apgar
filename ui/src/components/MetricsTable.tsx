@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/States";
 import { TableGroup } from "@/components/ui/table-group";
 import { ReasonTip } from "@/components/ui/tooltip";
 import { formatDelta, formatValue } from "@/lib/format";
-import { METRIC_GROUPS, type MetricId, metricDescription, metricLabel, naReasonLabel } from "@/lib/metrics";
+import { METRIC_GROUPS, type MetricId, metricDescription, metricLabel, unavailableReason } from "@/lib/metrics";
 import { cn } from "@/lib/utils";
 
 const UNIT_WORDS: Record<string, string> = { tokens: "tokens", chars: "chars" };
@@ -51,12 +51,12 @@ export function unavailableLines(
   items: Record<string, MetricItem>,
   coverage: MetricCoverage | null | undefined,
 ): string[] {
-  const byInput = new Map<string, string[]>();
+  const byReason = new Map<string, string[]>();
   for (const id of ids) {
-    const input = coverage?.metrics.find((row) => row.id === id)?.missing ?? naReasonLabel(items[id].na_reason).toLowerCase();
-    byInput.set(input, [...(byInput.get(input) ?? []), id]);
+    const text = unavailableReason(coverage?.metrics.find((row) => row.id === id)?.missing, items[id].na_reason);
+    byReason.set(text, [...(byReason.get(text) ?? []), id]);
   }
-  return [...byInput].map(([input, group]) => `${joinLabels(group)} ${group.length > 1 ? "are" : "is"} unavailable: missing ${input}.`);
+  return [...byReason].map(([text, group]) => `${joinLabels(group)} ${group.length > 1 ? "are" : "is"} unavailable: ${text}.`);
 }
 
 export function MetricsTable({

@@ -97,7 +97,7 @@ describe("SlicesSection", () => {
     expect(footer.querySelector("summary")).toHaveTextContent("3 values not compared · 3 dimensions not applicable");
     expect(screen.getByTestId("slices-reason-few_turns")).toHaveTextContent("Too few tool calls (needs 100 on each side)");
     expect(screen.getByTestId("slice-skipped-tool-create_ticket")).toHaveTextContent("564 / 97");
-    expect(screen.getByTestId("slices-reason-coverage")).toHaveTextContent("Too few units carry the required input");
+    expect(screen.getByTestId("slices-reason-coverage")).toHaveTextContent("Too few turns or tool calls carry the needed input");
     expect(screen.getByTestId("slices-reason-unknown")).toHaveTextContent("Not enough data to compare");
   });
 

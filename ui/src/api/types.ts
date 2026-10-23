@@ -54,6 +54,7 @@ export interface MetricCoverageItem {
   group: string;
   active: boolean;
   missing: string | null;
+  reason: string | null;
   share: number | null;
 }
 

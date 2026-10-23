@@ -72,14 +72,16 @@ describe("MetricsTable", () => {
           tool_error_rate: item({ status: "PASS" }),
           tool_retry_rate: item({ status: "NA", applicable: false, na_reason: "coverage", baseline: null, candidate: null }),
           loop_rate: item({ status: "NA", applicable: false, na_reason: "coverage", baseline: null, candidate: null }),
+          cost_per_turn: item({ status: "NA", applicable: false, na_reason: "disabled", baseline: null, candidate: null }),
         }}
         coverage={{
           active: 1,
-          total: 3,
-          groups: { behavior: { active: 0, total: 2 }, reliability: { active: 1, total: 1 } },
+          total: 4,
+          groups: { behavior: { active: 0, total: 2 }, reliability: { active: 1, total: 1 }, cost_latency: { active: 0, total: 1 } },
           metrics: [
-            { id: "tool_retry_rate", group: "behavior", active: false, missing: "tool arguments", share: 0.1 },
-            { id: "loop_rate", group: "behavior", active: false, missing: "tool arguments", share: 0.1 },
+            { id: "tool_retry_rate", group: "behavior", active: false, missing: "tool arguments", reason: "coverage", share: 0.1 },
+            { id: "loop_rate", group: "behavior", active: false, missing: "tool arguments", reason: "coverage", share: 0.1 },
+            { id: "cost_per_turn", group: "cost_latency", active: false, missing: null, reason: "disabled", share: null },
           ],
         }}
       />,
@@ -88,6 +90,7 @@ describe("MetricsTable", () => {
     expect(screen.getByTestId("metrics-unavailable-behavior")).toHaveTextContent(
       "Retry rate and loop rate are unavailable: missing tool arguments.",
     );
+    expect(screen.getByTestId("metrics-unavailable-cost_latency")).toHaveTextContent("Cost per turn is unavailable: turned off for this agent.");
   });
 
   it("shows raw values without a status while collecting", () => {

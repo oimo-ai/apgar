@@ -130,13 +130,13 @@ export const REASON_LABELS: Record<string, string> = {
 };
 
 export const NA_REASONS: Record<string, string> = {
-  disabled: "Disabled for this agent",
-  no_tools: "No tool calls in one of the arms",
-  no_content: "Message content not available",
-  coverage: "Too few units carry the required input (below 90%)",
-  zero_denominator: "No units in one of the arms",
-  no_cost: "Cost not available for enough turns",
-  no_sessions: "Not enough closed sessions or session ids missing",
+  disabled: "Turned off for this agent",
+  no_tools: "No tool calls in the previous release",
+  no_content: "Output content not captured",
+  coverage: "Too few turns or tool calls carry the needed input",
+  zero_denominator: "Cannot be compared on this data",
+  no_cost: "Too few turns have a cost",
+  no_sessions: "Too few closed sessions, or no session id",
 };
 
 export function reasonLabel(reason: string | null | undefined): string {
@@ -151,6 +151,10 @@ export function naReasonLabel(reason: string | null | undefined): string {
     return "n/a";
   }
   return NA_REASONS[reason] ?? reason;
+}
+
+export function unavailableReason(missing: string | null | undefined, reason: string | null | undefined): string {
+  return missing ? `missing ${missing}` : naReasonLabel(reason).toLowerCase();
 }
 
 const SLICE_REASONS: Record<string, string> = {

@@ -9,20 +9,21 @@ from apgar.verdict.numbers import finite
 
 _ARGUMENT_METRICS = {MetricId.tool_retry_rate, MetricId.loop_rate}
 _MISSING = {
-    "no_tools": "tool spans",
     "no_content": "message content",
     "no_sessions": "session id",
     "no_cost": "cost on chat spans",
-    "disabled": "disabled in settings",
-    "zero_denominator": "no qualifying traffic",
 }
 LOW_BEHAVIOR_COVERAGE = 0.5
 
 
-def missing_input(metric_id: MetricId, na_reason: str) -> str:
+def missing_input(metric_id: MetricId, na_reason: str) -> str | None:
     if na_reason == "coverage":
-        return "tool arguments" if metric_id in _ARGUMENT_METRICS else "message content"
-    return _MISSING.get(na_reason, na_reason)
+        if metric_id in _ARGUMENT_METRICS:
+            return "tool arguments"
+        if metric_id is MetricId.output_tokens_p50:
+            return "token counts or message content"
+        return "message content"
+    return _MISSING.get(na_reason)
 
 
 def _share(item: dict[str, Any]) -> float | None:
@@ -60,6 +61,7 @@ def metric_coverage(agent: Agent, items: object) -> dict[str, Any] | None:
                     "group": group,
                     "active": active,
                     "missing": None if active else missing_input(metric_id, reason),
+                    "reason": None if active else reason or None,
                     "share": _share(item),
                 }
             )

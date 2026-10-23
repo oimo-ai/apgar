@@ -1,6 +1,6 @@
 import type { MetricCoverage as Coverage } from "@/api/types";
 import { formatRate } from "@/lib/format";
-import { METRIC_GROUPS, metricLabel } from "@/lib/metrics";
+import { METRIC_GROUPS, metricLabel, unavailableReason } from "@/lib/metrics";
 
 export function coverageText(coverage: Coverage): string {
   return `${coverage.active} of ${coverage.total} metrics active`;
@@ -14,7 +14,8 @@ export function MetricCoverage({ coverage }: { coverage: Coverage | null }) {
       </p>
     );
   }
-  const missing = coverage.metrics.filter((row) => !row.active);
+  const inactive = coverage.metrics.filter((row) => !row.active);
+  const missing = inactive.filter((row) => row.missing);
   return (
     <details data-testid="metric-coverage" className="text-sm">
       <summary className="cursor-pointer">
@@ -27,7 +28,7 @@ export function MetricCoverage({ coverage }: { coverage: Coverage | null }) {
           if (!counts || counts.total === 0) {
             return null;
           }
-          const rows = missing.filter((row) => row.group === group.id);
+          const rows = inactive.filter((row) => row.group === group.id);
           return (
             <div key={group.id} data-testid={`metric-coverage-${group.id}`}>
               <p className="m-0 text-xs font-medium text-muted-foreground">
@@ -37,8 +38,8 @@ export function MetricCoverage({ coverage }: { coverage: Coverage | null }) {
                 <ul className="m-0 mt-1 flex list-none flex-col gap-0.5 p-0 text-xs">
                   {rows.map((row) => (
                     <li key={row.id}>
-                      {metricLabel(row.id)}: missing {row.missing ?? "input"}
-                      {row.share != null ? <span className="text-muted-foreground"> ({formatRate(row.share)} of units carry it)</span> : null}
+                      {metricLabel(row.id)}: {unavailableReason(row.missing, row.reason)}
+                      {row.missing && row.share != null ? <span className="text-muted-foreground"> (present on {formatRate(row.share)})</span> : null}
                     </li>
                   ))}
                 </ul>

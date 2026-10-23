@@ -26,6 +26,22 @@ Open http://localhost:8080 and sign in with the value of `APGAR_ADMIN_TOKEN` in 
 
 On a server, set `APGAR_PUBLIC_URL` to the address people and exporters use, and terminate TLS in a reverse proxy in front of port 8080.
 
+## Use with a coding agent
+
+Give Claude Code, Cursor, Codex, or another coding agent the Apgar skill before it sets up an integration:
+
+```bash
+npx skills add https://docs.useapgar.dev
+```
+
+Then copy and paste this prompt to the agent:
+
+```text
+Use the Apgar skill. Look at this codebase and tell me what has to change so that every release of this agent can be compared in Apgar: the traces, the release attribute, and anything the instrumentation leaves out. Do not change code until I agree.
+```
+
+[Use with AI agents](https://docs.useapgar.dev/ai-agents) also covers the docs MCP server.
+
 ## Upgrade
 
 Every release attaches a `docker-compose.yml` that pins its images. Read the release notes and back up the ClickHouse volume, then replace the Compose file and start the new version:

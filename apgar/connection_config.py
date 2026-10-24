@@ -122,7 +122,3 @@ def redact_config(conn_type: ConnectionType, config: dict[str, Any]) -> dict[str
     if conn_type is ConnectionType.slack:
         return {"webhook_url": config.get("webhook_url")}
     return {"url": config.get("url"), "secret": _BULLET}
-
-
-def config_material(config: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in config.items() if key != "project_id"}

@@ -178,7 +178,6 @@ async def test_payload_usage_outcome_and_onboarding_fields(settings: Settings) -
     for agent in (otlp, langfuse, demo):
         await meta.upsert_agent(agent)
     await meta.set_setting("telemetry.created_date", "2026-10-01", _NOW)
-    await meta.set_setting("telemetry.config_file", "1", _NOW)
     await meta.upsert_connection(make_connection(_NOW, id="c-lf", status=ConnectionStatus.error))
     await meta.upsert_connection(
         make_connection(
@@ -303,7 +302,6 @@ async def test_payload_usage_outcome_and_onboarding_fields(settings: Settings) -
     assert isinstance(properties, dict)
     expected = {
         "install_age_days": 7,
-        "uses_config_file": True,
         "agents_non_demo": 2,
         "agents_demo": 1,
         "agents_otlp": 1,
@@ -350,7 +348,6 @@ async def test_empty_instance_has_no_buckets(settings: Settings) -> None:
     assert properties["untagged_share"] is None
     assert properties["hours_to_verdict"] is None
     assert properties["install_age_days"] == 0
-    assert properties["uses_config_file"] is False
 
 
 async def test_instance_id_is_stable(settings: Settings) -> None:

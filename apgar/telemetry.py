@@ -88,10 +88,6 @@ async def telemetry_is_enabled(settings: Settings, meta_store: MetaStore) -> boo
     return stored != "0"
 
 
-async def record_config_file(meta_store: MetaStore, present: bool, now: datetime) -> None:
-    await meta_store.set_setting("telemetry.config_file", "1" if present else "0", now)
-
-
 async def _stored(meta_store: MetaStore, key: str, value: str, now: datetime) -> str:
     stored = await meta_store.get_setting(key)
     if stored:
@@ -241,7 +237,6 @@ async def build_payload(
         "os": platform.system().lower(),
         "arch": platform.machine().lower(),
         "install_age_days": max(0, (today - date.fromisoformat(created)).days),
-        "uses_config_file": await meta_store.get_setting("telemetry.config_file") == "1",
         "agents_non_demo": len(live),
         "agents_demo": len(agents) - len(live),
     }

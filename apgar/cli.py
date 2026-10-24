@@ -29,13 +29,9 @@ from apgar.storage.clickhouse.migrate import (
 from apgar.verdict.evaluate import Evaluator
 from apgar.verdict.pool import InlinePool
 from apgar.worker.main import run_worker
-from apgar.yaml_config import ConfigError
 
 
 def _fail(exc: BaseException) -> NoReturn:
-    if isinstance(exc, ConfigError):
-        click.echo(str(exc), err=True)
-        raise SystemExit(2) from exc
     if isinstance(exc, SchemaVersionError):
         click.echo(str(exc), err=True)
         raise SystemExit(3) from exc

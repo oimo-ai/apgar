@@ -2,10 +2,21 @@
 # Installs the chart on the current Kubernetes context, upgrades it, and runs
 # `helm test` after each step. Expects apgar:dev and apgar-ui:dev on the nodes,
 # for example loaded with `kind load docker-image`.
-set -euo pipefail
+set -Eeuo pipefail
 
 NAMESPACE="${NAMESPACE:-apgar-smoke}"
 CHART="$(git rev-parse --show-toplevel)/deploy/helm/apgar"
+
+# Prints the state of the release when a step fails, so a CI log shows the cause.
+diagnose() {
+  trap - ERR
+  kubectl -n "${NAMESPACE}" get pods -o wide || true
+  kubectl -n "${NAMESPACE}" get events --sort-by=.lastTimestamp | tail -n 30 || true
+  for pod in $(kubectl -n "${NAMESPACE}" get pods -o name); do
+    kubectl -n "${NAMESPACE}" logs "${pod}" --all-containers --prefix --tail=40 || true
+  done
+}
+trap diagnose ERR
 
 kubectl create namespace "${NAMESPACE}"
 kubectl label namespace "${NAMESPACE}" pod-security.kubernetes.io/enforce=restricted

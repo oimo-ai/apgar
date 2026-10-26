@@ -36,6 +36,10 @@ env: {}
 # APGAR_SECRET_KEY_PREVIOUS during a key rotation.
 envFrom: []
 
+# Pods run under the user and group ids their images expect. OpenShift assigns ids per
+# namespace under its restricted SCC: set this to false there.
+fixedPodIds: true
+
 # DNS suffix of the cluster. nginx in the UI needs the full name of the API Service.
 clusterDomain: cluster.local
 

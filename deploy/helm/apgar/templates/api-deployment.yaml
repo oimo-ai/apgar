@@ -31,7 +31,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       securityContext:
-        {{- include "apgar.podSecurityContext" (dict "uid" 10001) | nindent 8 }}
+        {{- include "apgar.podSecurityContext" (dict "root" . "uid" 10001) | nindent 8 }}
       initContainers:
         # The worker applies migrations. The API starts once the schema matches this image.
         - name: wait-for-schema
@@ -43,6 +43,8 @@ spec:
           {{- include "apgar.envFrom" . | nindent 10 }}
           securityContext:
             {{- include "apgar.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
           volumeMounts:
             {{- include "apgar.volumeMounts" . | nindent 12 }}
       containers:
@@ -52,8 +54,6 @@ spec:
           args: ["api"]
           env:
             {{- include "apgar.env" . | nindent 12 }}
-            - name: APGAR_WORKER_METRICS_URL
-              value: "http://{{ include "apgar.fullname" . }}-worker:8001/metrics"
           {{- include "apgar.envFrom" . | nindent 10 }}
           ports:
             - name: http

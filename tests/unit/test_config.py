@@ -60,7 +60,7 @@ def test_defaults_match_conventions(monkeypatch: pytest.MonkeyPatch) -> None:
     assert loaded.clickhouse_url == "http://localhost:8123"
     assert loaded.clickhouse_user == "apgar"
     assert loaded.clickhouse_database == "apgar"
-    assert loaded.api_host == "0.0.0.0"
+    assert loaded.api_host is None
     assert loaded.api_port == 8000
     assert loaded.public_url == "http://localhost:8080"
     assert loaded.log_level == "INFO"
@@ -78,9 +78,10 @@ def test_defaults_match_conventions(monkeypatch: pytest.MonkeyPatch) -> None:
     assert loaded.trusted_proxy_hops == 1
 
 
-def test_empty_clickhouse_ca_cert_is_unset() -> None:
-    loaded = Settings(secret_key="x" * 32, admin_token="y" * 16, clickhouse_ca_cert="")
+def test_empty_values_are_unset() -> None:
+    loaded = Settings(secret_key="x" * 32, admin_token="y" * 16, clickhouse_ca_cert="", api_host="")
     assert loaded.clickhouse_ca_cert is None
+    assert loaded.api_host is None
 
 
 def test_trusted_proxy_hops_cannot_be_negative() -> None:

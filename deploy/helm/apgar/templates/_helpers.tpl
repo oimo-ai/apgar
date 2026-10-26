@@ -90,6 +90,12 @@ app.kubernetes.io/component: {{ .component }}
 {{- if and (not .Values.clickhouse.enabled) (not .Values.clickhouse.external.url) -}}
 {{- fail "clickhouse.enabled is false, so clickhouse.external.url is required, for example https://abc.clickhouse.cloud:8443" -}}
 {{- end -}}
+{{- if and (kindIs "invalid" .Values.api.trustedProxyHops) (or .Values.ingress.enabled .Values.httpRoute.enabled) (ne .Values.ui.service.type "ClusterIP") -}}
+{{- fail "ui.service.type exposes the UI directly while ingress or httpRoute is enabled, so a client could forge the ingress hop in X-Forwarded-For. Use ui.service.type=ClusterIP, or set api.trustedProxyHops." -}}
+{{- end -}}
+{{- if and .Values.clickhouse.enabled (eq .Values.clickhouse.user "default") -}}
+{{- fail "clickhouse.user cannot be default with the bundled ClickHouse, which keeps the default user for local access. Use another name, for example apgar." -}}
+{{- end -}}
 {{- if and .Values.httpRoute.enabled (not .Values.httpRoute.parentRefs) -}}
 {{- fail "httpRoute.enabled needs httpRoute.parentRefs, the Gateway that serves the route" -}}
 {{- end -}}
@@ -103,11 +109,14 @@ capabilities:
   drop: ["ALL"]
 {{- end -}}
 
+{{/* Call with (dict "root" $ "uid" 10001). */}}
 {{- define "apgar.podSecurityContext" -}}
 runAsNonRoot: true
+{{- if .root.Values.fixedPodIds }}
 runAsUser: {{ .uid }}
 runAsGroup: {{ .uid }}
 fsGroup: {{ .uid }}
+{{- end }}
 seccompProfile:
   type: RuntimeDefault
 {{- end -}}

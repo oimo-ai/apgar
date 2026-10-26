@@ -14,6 +14,9 @@
     "existingSecret": {
       "type": "string"
     },
+    "fixedPodIds": {
+      "type": "boolean"
+    },
     "secret": {
       "type": "object",
       "additionalProperties": false,

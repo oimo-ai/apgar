@@ -14,6 +14,7 @@ from apgar.config import Settings, load_settings
 from apgar.demo.generator import DEMO_CLOCK, purge, seed, simulate_verdicts
 from apgar.domain.time import utcnow
 from apgar.logging import setup_logging
+from apgar.net import listen_socket
 from apgar.normalize.normalizer import HmacKeys
 from apgar.security import SecretBox
 from apgar.storage.clickhouse.client import create_client
@@ -89,11 +90,13 @@ async def _run_api() -> None:
     app.state.client = client
     config = uvicorn.Config(
         app,
-        host=settings.api_host,
+        host=settings.api_host or "::",
         port=settings.api_port,
         log_config=None,
     )
-    await uvicorn.Server(config).serve()
+    # Without a host, the API listens on every IPv4 and IPv6 address.
+    sockets = None if settings.api_host else [listen_socket(settings.api_port)]
+    await uvicorn.Server(config).serve(sockets=sockets)
 
 
 async def _run_worker() -> None:

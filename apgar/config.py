@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     secret_key: str = ""
     secret_key_previous: str | None = None
     admin_token: str = ""
-    api_host: str = "0.0.0.0"
+    api_host: str | None = None
     api_port: int = 8000
     public_url: str = "http://localhost:8080"
     cookie_secure: bool = False
@@ -118,7 +118,7 @@ class Settings(BaseSettings):
             return value[:-1]
         return value
 
-    @field_validator("secret_key_previous", "clickhouse_ca_cert")
+    @field_validator("secret_key_previous", "clickhouse_ca_cert", "api_host")
     @classmethod
     def _empty_is_unset(cls, value: str | None) -> str | None:
         if value == "":

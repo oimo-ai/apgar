@@ -27,7 +27,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       securityContext:
-        {{- include "apgar.podSecurityContext" (dict "uid" 101) | nindent 8 }}
+        {{- include "apgar.podSecurityContext" (dict "root" . "uid" 101) | nindent 8 }}
       containers:
         - name: ui
           image: {{ include "apgar.uiImage" . }}

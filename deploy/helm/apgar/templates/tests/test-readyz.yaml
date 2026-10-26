@@ -11,8 +11,13 @@ metadata:
 spec:
   restartPolicy: Never
   enableServiceLinks: false
+  serviceAccountName: {{ include "apgar.serviceAccountName" . }}
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   securityContext:
-    {{- include "apgar.podSecurityContext" (dict "uid" 10001) | nindent 4 }}
+    {{- include "apgar.podSecurityContext" (dict "root" . "uid" 10001) | nindent 4 }}
   containers:
     - name: readyz
       image: {{ include "apgar.image" . }}
@@ -26,3 +31,5 @@ spec:
               print(json.load(response))
       securityContext:
         {{- include "apgar.containerSecurityContext" . | nindent 8 }}
+      resources:
+        {{- toYaml .Values.api.resources | nindent 8 }}

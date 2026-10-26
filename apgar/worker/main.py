@@ -10,6 +10,7 @@ from prometheus_client import start_http_server
 
 from apgar.config import Settings
 from apgar.domain.time import utcnow
+from apgar.net import any_address
 from apgar.security import SecretBox
 from apgar.storage.clickhouse.migrate import (
     EXPECTED_SCHEMA_VERSION,
@@ -49,7 +50,7 @@ async def run_worker(
     if settings.secret_key_previous:
         await reencrypt_connections(meta_store, box, now)
     log_startup(settings)
-    start_http_server(settings.worker_metrics_port)
+    start_http_server(settings.worker_metrics_port, addr=any_address())
     await write(meta_store, settings.worker_instance_id, now)
     jobs = register_jobs(settings, (event_store, meta_store), asyncio.Lock())
     stop_event = asyncio.Event()

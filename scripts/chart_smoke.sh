@@ -25,8 +25,12 @@ kubectl -n "${NAMESPACE}" create secret generic apgar \
   --from-literal=APGAR_ADMIN_TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(24))')" \
   --from-literal=APGAR_CLICKHOUSE_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
 
+# CI runners have two CPUs, fewer than the default requests of the chart need.
 release() {
   helm "$1" apgar "${CHART}" -n "${NAMESPACE}" \
+    --set api.resources.requests.cpu=100m \
+    --set worker.resources.requests.cpu=100m \
+    --set clickhouse.resources.requests.cpu=100m \
     --set existingSecret=apgar \
     --set publicUrl=http://localhost:8080 \
     --set image.repository=apgar --set image.tag=dev --set image.pullPolicy=Never \

@@ -1,0 +1,13 @@
+{{- if .Values.api.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "apgar.fullname" . }}-api
+  labels:
+    {{- include "apgar.componentLabels" (dict "root" . "component" "api") | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.api.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "apgar.selectorLabels" (dict "root" . "component" "api") | nindent 6 }}
+{{- end }}

@@ -29,6 +29,9 @@ IMAGE = re.compile(
 )
 PYPROJECT_VERSION = re.compile(r'^version = "[^"]*"$', re.MULTILINE)
 INIT_VERSION = re.compile(r'^__version__ = "(?P<version>[^"]*)"$', re.MULTILINE)
+CHART = "deploy/helm/apgar/Chart.yaml"
+CHART_VERSION = re.compile(r"^version: (?P<version>\S+)$", re.MULTILINE)
+CHART_APP_VERSION = re.compile(r'^appVersion: "(?P<version>[^"]*)"$', re.MULTILINE)
 LOCK_VERSION = re.compile(
     r'^(?P<head>\[\[package\]\]\nname = "apgar"\nversion = ")[^"]*"', re.MULTILINE
 )
@@ -113,6 +116,18 @@ PLACES = (
         "uv.lock",
         _read_uv_lock,
         lambda text, version: LOCK_VERSION.sub(lambda m: f'{m["head"]}{version}"', text),
+    ),
+    Place(
+        "Chart.yaml version",
+        CHART,
+        lambda text: [m["version"] for m in CHART_VERSION.finditer(text)],
+        lambda text, version: CHART_VERSION.sub(f"version: {version}", text),
+    ),
+    Place(
+        "Chart.yaml appVersion",
+        CHART,
+        lambda text: [m["version"] for m in CHART_APP_VERSION.finditer(text)],
+        lambda text, version: CHART_APP_VERSION.sub(f'appVersion: "{version}"', text),
     ),
     Place(
         "docker-compose.yml image apgar",

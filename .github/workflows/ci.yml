@@ -12,6 +12,7 @@ jobs:
     outputs:
       python: ${{ steps.filter.outputs.python }}
       ui: ${{ steps.filter.outputs.ui }}
+      chart: ${{ steps.filter.outputs.chart }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,6 +37,17 @@ jobs:
               - 'ui/**'
               - 'Makefile'
               - '.github/workflows/ci.yml'
+            chart:
+              - 'deploy/helm/**'
+              - 'Dockerfile'
+              - 'ui/Dockerfile'
+              - 'ui/nginx/**'
+              - 'apgar/cli.py'
+              - 'apgar/config.py'
+              - 'apgar/storage/clickhouse/**'
+              - 'scripts/chart_smoke.sh'
+              - 'Makefile'
+              - '.github/workflows/ci.yml'
   python:
     needs: changes
     if: needs.changes.result == 'success' && needs.changes.outputs.python == 'true'
@@ -47,6 +59,7 @@ jobs:
           CLICKHOUSE_USER: apgar
           CLICKHOUSE_PASSWORD: apgar_test
           CLICKHOUSE_DB: apgar
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
         ports:
           - 18123:8123
         options: --health-cmd "wget -q --spider http://localhost:8123/ping" --health-interval 5s --health-retries 30
@@ -92,14 +105,29 @@ jobs:
       - run: npm run typecheck
       - run: npm run test -- --run --coverage --coverage.thresholds.statements=95
       - run: npm run build
+  chart:
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.chart == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: make chart-lint
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: apgar
+      - run: docker build -t apgar:dev .
+      - run: docker build -t apgar-ui:dev -f ui/Dockerfile .
+      - run: kind load docker-image apgar:dev apgar-ui:dev --name apgar
+      - run: make chart-smoke
   result:
-    needs: [changes, python, docker-apgar, docker-ui, ui]
+    needs: [changes, python, docker-apgar, docker-ui, ui, chart]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Fail when a selected job failed
         env:
-          RESULTS: ${{ needs.changes.result }} ${{ needs.python.result }} ${{ needs.docker-apgar.result }} ${{ needs.docker-ui.result }} ${{ needs.ui.result }}
+          RESULTS: ${{ needs.changes.result }} ${{ needs.python.result }} ${{ needs.docker-apgar.result }} ${{ needs.docker-ui.result }} ${{ needs.ui.result }} ${{ needs.chart.result }}
         run: |
           set -eu
           for result in ${RESULTS}; do

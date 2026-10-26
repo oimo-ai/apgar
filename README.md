@@ -26,6 +26,22 @@ Open http://localhost:8080 and sign in with the value of `APGAR_ADMIN_TOKEN` in 
 
 On a server, set `APGAR_PUBLIC_URL` to the address people and exporters use, and terminate TLS in a reverse proxy in front of port 8080.
 
+### Kubernetes
+
+The Helm chart runs the same services, with ClickHouse in the release or your own. Create the Secret first; the chart never generates these values:
+
+```bash
+kubectl create namespace apgar
+kubectl -n apgar create secret generic apgar \
+  --from-literal=APGAR_SECRET_KEY=$(openssl rand -hex 32) \
+  --from-literal=APGAR_ADMIN_TOKEN=$(openssl rand -hex 16) \
+  --from-literal=APGAR_CLICKHOUSE_PASSWORD=$(openssl rand -hex 16)
+helm install apgar oci://ghcr.io/oimo-ai/charts/apgar -n apgar \
+  --set existingSecret=apgar --set publicUrl=https://apgar.example.com
+```
+
+[Kubernetes](https://docs.useapgar.dev/self-hosting/kubernetes) covers ingress, external ClickHouse, and upgrades.
+
 ## Use with a coding agent
 
 Give Claude Code, Cursor, Codex, or another coding agent the Apgar skill before it sets up an integration:
@@ -51,6 +67,8 @@ curl -fsSLO https://github.com/oimo-ai/apgar/releases/latest/download/docker-com
 docker compose pull
 docker compose up -d --wait
 ```
+
+On Kubernetes, `helm upgrade` applies the migrations before the new API starts.
 
 ## Development
 

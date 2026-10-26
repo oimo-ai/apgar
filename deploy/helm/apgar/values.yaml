@@ -1,0 +1,170 @@
+# Address people and exporters use to reach Apgar, for example https://apgar.example.com.
+# Message links and the exporter snippet use it. Required.
+publicUrl: ""
+
+# Name of a Secret with the keys APGAR_SECRET_KEY (at least 32 characters),
+# APGAR_ADMIN_TOKEN (at least 16 characters), and APGAR_CLICKHOUSE_PASSWORD.
+# The chart never generates these values: a secret key that changes on an upgrade
+# signs everyone out and makes stored connection secrets unreadable.
+existingSecret: ""
+
+# Used only when existingSecret is empty. The chart then creates the Secret from
+# these values, and fails when one is missing.
+secret:
+  secretKey: ""
+  adminToken: ""
+  clickhousePassword: ""
+
+image:
+  repository: ghcr.io/oimo-ai/apgar
+  # Defaults to the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+uiImage:
+  repository: ghcr.io/oimo-ai/apgar-ui
+  # Defaults to the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Extra APGAR_ variables for the API and the worker, for example APGAR_TELEMETRY: "0".
+env: {}
+
+# Extra variable sources for the API and the worker, for example a Secret that holds
+# APGAR_SECRET_KEY_PREVIOUS during a key rotation.
+envFrom: []
+
+# DNS suffix of the cluster. nginx in the UI needs the full name of the API Service.
+clusterDomain: cluster.local
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+clickhouse:
+  # Runs one ClickHouse node in the release. Set to false to use external.url instead.
+  enabled: true
+  image:
+    repository: clickhouse/clickhouse-server
+    tag: "25.8"
+    pullPolicy: IfNotPresent
+  user: apgar
+  database: apgar
+  persistence:
+    size: 50Gi
+    # Empty uses the default StorageClass of the cluster.
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  external:
+    # HTTP interface of your ClickHouse, for example https://abc.clickhouse.cloud:8443.
+    url: ""
+    # Secret with a ca.crt key, for an https URL signed by a private CA.
+    caSecret: ""
+    # Set to false only for testing. Turns off certificate verification.
+    verify: true
+
+api:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  # Proxies in front of the API that append to X-Forwarded-For. Empty counts the UI,
+  # plus the ingress controller when ingress or httpRoute is enabled.
+  trustedProxyHops: null
+  # Seconds the API waits at startup for the worker to apply migrations.
+  schemaWaitSeconds: 600
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Exactly one worker runs. It applies migrations in an init container before it starts.
+worker:
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    # The worker starts one evaluator process per CPU of its limit, minus one.
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  # Seconds `apgar migrate` keeps retrying while ClickHouse is not reachable yet.
+  migrateTimeoutSeconds: 600
+  terminationGracePeriodSeconds: 60
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+ui:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  service:
+    type: ClusterIP
+    port: 80
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+ingress:
+  enabled: false
+  className: ""
+  # The chart adds the ingress-nginx annotations for OTLP bodies up to 64 MiB.
+  # Values set here win.
+  annotations: {}
+  # Empty uses the host of publicUrl.
+  host: ""
+  tls:
+    # Secret with the certificate, or the Secret cert-manager writes to.
+    secretName: ""
+
+# Gateway API route to the UI, as an alternative to ingress.
+httpRoute:
+  enabled: false
+  parentRefs: []
+  # Empty uses the host of publicUrl.
+  hostnames: []
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+  prometheusRule:
+    enabled: false
+    labels: {}
+
+networkPolicy:
+  # Allows ClickHouse only from Apgar pods, and the worker only from the API and
+  # metricsFrom.
+  enabled: false
+  # Peers allowed to scrape the worker, for example the Prometheus namespace.
+  metricsFrom: []

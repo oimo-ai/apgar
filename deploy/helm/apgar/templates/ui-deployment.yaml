@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "apgar.fullname" . }}-ui
+  labels:
+    {{- include "apgar.componentLabels" (dict "root" . "component" "ui") | nindent 4 }}
+spec:
+  replicas: {{ .Values.ui.replicas }}
+  selector:
+    matchLabels:
+      {{- include "apgar.selectorLabels" (dict "root" . "component" "ui") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "apgar.componentLabels" (dict "root" . "component" "ui") | nindent 8 }}
+      {{- with .Values.ui.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      # Service links would inject APGAR_API_PORT and similar variables, which Apgar
+      # reads as settings.
+      enableServiceLinks: false
+      serviceAccountName: {{ include "apgar.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "apgar.podSecurityContext" (dict "uid" 101) | nindent 8 }}
+      containers:
+        - name: ui
+          image: {{ include "apgar.uiImage" . }}
+          imagePullPolicy: {{ .Values.uiImage.pullPolicy }}
+          env:
+            # nginx resolves the upstream itself and skips the search domains of
+            # resolv.conf, so the Service name must be fully qualified.
+            - name: API_UPSTREAM
+              value: "http://{{ include "apgar.fullname" . }}-api.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:8000"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          securityContext:
+            {{- include "apgar.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.ui.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        # The entrypoint renders the nginx configuration from its template here.
+        - name: nginx-conf
+          emptyDir: {}
+      {{- with .Values.ui.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ui.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ui.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

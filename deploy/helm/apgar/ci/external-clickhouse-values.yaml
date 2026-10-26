@@ -1,0 +1,20 @@
+publicUrl: https://apgar.example.com
+existingSecret: apgar
+clickhouse:
+  enabled: false
+  external:
+    url: https://abc.clickhouse.cloud:8443
+    caSecret: clickhouse-ca
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: gateway
+      namespace: gateway-system
+api:
+  autoscaling:
+    enabled: true
+env:
+  APGAR_TELEMETRY: "0"
+envFrom:
+  - secretRef:
+      name: apgar-extra

@@ -1,0 +1,28 @@
+# `helm test` checks that the UI reaches the API and that the schema matches.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "apgar.fullname" . }}-test-readyz
+  labels:
+    {{- include "apgar.componentLabels" (dict "root" . "component" "test") | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  enableServiceLinks: false
+  securityContext:
+    {{- include "apgar.podSecurityContext" (dict "uid" 10001) | nindent 4 }}
+  containers:
+    - name: readyz
+      image: {{ include "apgar.image" . }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      command: ["python", "-c"]
+      args:
+        - |
+          import json, urllib.request
+          url = "http://{{ include "apgar.fullname" . }}-ui:{{ .Values.ui.service.port }}/readyz"
+          with urllib.request.urlopen(url, timeout=10) as response:
+              print(json.load(response))
+      securityContext:
+        {{- include "apgar.containerSecurityContext" . | nindent 8 }}

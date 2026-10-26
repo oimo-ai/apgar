@@ -1,0 +1,104 @@
+{{- if .Values.clickhouse.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "apgar.fullname" . }}-clickhouse
+  labels:
+    {{- include "apgar.componentLabels" (dict "root" . "component" "clickhouse") | nindent 4 }}
+spec:
+  serviceName: {{ include "apgar.fullname" . }}-clickhouse
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "apgar.selectorLabels" (dict "root" . "component" "clickhouse") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "apgar.componentLabels" (dict "root" . "component" "clickhouse") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print .Template.BasePath "/clickhouse-configmap.yaml") . | sha256sum }}
+        {{- include "apgar.secretChecksum" . | nindent 8 }}
+    spec:
+      # Service links would inject APGAR_API_PORT and similar variables, which Apgar
+      # reads as settings.
+      enableServiceLinks: false
+      serviceAccountName: {{ include "apgar.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "apgar.podSecurityContext" (dict "uid" 101) | nindent 8 }}
+      containers:
+        - name: clickhouse
+          image: "{{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}"
+          imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+          env:
+            # The user and its password come from apgar-users.xml.
+            - name: CLICKHOUSE_SKIP_USER_SETUP
+              value: "1"
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "apgar.secretName" . }}
+                  key: APGAR_CLICKHOUSE_PASSWORD
+          ports:
+            - name: http
+              containerPort: 8123
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+          securityContext:
+            {{- include "apgar.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.clickhouse.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/apgar-config.xml
+              subPath: apgar-config.xml
+            - name: config
+              mountPath: /etc/clickhouse-server/users.d/apgar-users.xml
+              subPath: apgar-users.xml
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "apgar.fullname" . }}-clickhouse
+      {{- with .Values.clickhouse.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.clickhouse.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.clickhouse.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.clickhouse.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.clickhouse.persistence.size }}
+{{- end }}

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "apgar.fullname" . }}-worker
+  labels:
+    {{- include "apgar.componentLabels" (dict "root" . "component" "worker") | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "apgar.selectorLabels" (dict "root" . "component" "worker") | nindent 4 }}
+  ports:
+    - name: metrics
+      port: 8001
+      targetPort: metrics

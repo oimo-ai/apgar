@@ -1,0 +1,92 @@
+# A StatefulSet stops the old pod before it starts the new one and keeps the pod name,
+# which is also the heartbeat instance id. A restarted worker therefore reclaims its own
+# heartbeat instead of waiting for it to go stale.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "apgar.fullname" . }}-worker
+  labels:
+    {{- include "apgar.componentLabels" (dict "root" . "component" "worker") | nindent 4 }}
+spec:
+  serviceName: {{ include "apgar.fullname" . }}-worker
+  # Exactly one worker may run. It is the only process that applies migrations.
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "apgar.selectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "apgar.componentLabels" (dict "root" . "component" "worker") | nindent 8 }}
+      annotations:
+        {{- include "apgar.secretChecksum" . | nindent 8 }}
+        {{- with .Values.worker.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      # Service links would inject APGAR_API_PORT and similar variables, which Apgar
+      # reads as settings.
+      enableServiceLinks: false
+      serviceAccountName: {{ include "apgar.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "apgar.podSecurityContext" (dict "uid" 10001) | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.worker.terminationGracePeriodSeconds }}
+      initContainers:
+        # Runs on the first install and on every upgrade, and waits for ClickHouse to start.
+        - name: migrate
+          image: {{ include "apgar.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["migrate", "--timeout", "{{ .Values.worker.migrateTimeoutSeconds }}"]
+          env:
+            {{- include "apgar.env" . | nindent 12 }}
+          {{- include "apgar.envFrom" . | nindent 10 }}
+          securityContext:
+            {{- include "apgar.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            {{- include "apgar.volumeMounts" . | nindent 12 }}
+      containers:
+        - name: worker
+          image: {{ include "apgar.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["worker"]
+          env:
+            {{- include "apgar.env" . | nindent 12 }}
+            - name: APGAR_WORKER_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          {{- include "apgar.envFrom" . | nindent 10 }}
+          ports:
+            - name: metrics
+              containerPort: 8001
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 4
+          securityContext:
+            {{- include "apgar.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "apgar.volumeMounts" . | nindent 12 }}
+      volumes:
+        {{- include "apgar.volumes" . | nindent 8 }}
+      {{- with .Values.worker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

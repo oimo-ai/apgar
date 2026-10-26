@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from types import SimpleNamespace
 
 import httpx
+import pytest
 from httpx import ASGITransport
+from starlette.requests import Request
 
 from apgar.api.app import create_app
+from apgar.api.deps import _client_ip
 from apgar.api.session import issue_session, verify_session_cookie
 from apgar.config import Settings
 from apgar.storage.memory import InMemoryEventStore, InMemoryMetaStore
@@ -155,6 +159,53 @@ async def test_login_rate_limit_429(
     )
     assert blocked.status_code == 429
     assert blocked.json()["error"]["code"] == "rate_limited"
+
+
+async def test_login_rate_limit_ignores_a_spoofed_forwarded_for(
+    app_client: httpx.AsyncClient,
+) -> None:
+    for attempt in range(10):
+        headers = {"X-Forwarded-For": f"198.51.100.{attempt}, 203.0.113.9"}
+        response = await app_client.post(
+            "/api/v1/auth/login", json={"token": "not-the-admin-token"}, headers=headers
+        )
+        assert response.status_code == 401
+    blocked = await app_client.post(
+        "/api/v1/auth/login",
+        json={"token": "not-the-admin-token"},
+        headers={"X-Forwarded-For": "198.51.100.99, 203.0.113.9"},
+    )
+    assert blocked.status_code == 429
+
+
+def _request(hops: int, forwarded: str | None) -> Request:
+    settings = SimpleNamespace(trusted_proxy_hops=hops)
+    headers = [] if forwarded is None else [(b"x-forwarded-for", forwarded.encode())]
+    scope = {
+        "type": "http",
+        "headers": headers,
+        "client": ("10.0.0.5", 41000),
+        "app": SimpleNamespace(state=SimpleNamespace(settings=settings)),
+    }
+    return Request(scope)
+
+
+@pytest.mark.parametrize(
+    ("hops", "forwarded", "expected"),
+    [
+        (1, "203.0.113.9", "203.0.113.9"),
+        (1, "spoofed, 203.0.113.9", "203.0.113.9"),
+        (2, "spoofed, 203.0.113.9, 10.0.0.2", "203.0.113.9"),
+        (3, "203.0.113.9, 10.0.0.2", "203.0.113.9"),
+        (0, "203.0.113.9", "10.0.0.5"),
+        (1, None, "10.0.0.5"),
+        (1, " , ", "10.0.0.5"),
+    ],
+)
+def test_client_ip_trusts_only_the_configured_proxies(
+    hops: int, forwarded: str | None, expected: str
+) -> None:
+    assert _client_ip(_request(hops, forwarded)) == expected
 
 
 async def test_logout_clears_cookie(app_client: httpx.AsyncClient, settings: Settings) -> None:

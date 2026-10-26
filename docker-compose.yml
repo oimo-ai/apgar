@@ -56,10 +56,10 @@ services:
   apgar-ui:
     image: ghcr.io/oimo-ai/apgar-ui:0.1.2
     restart: unless-stopped
-    ports: ["8080:80"]
+    ports: ["8080:8080"]
     environment: { API_UPSTREAM: http://apgar-api:8000 }
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 5s
       timeout: 3s
       retries: 30

@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import clickhouse_connect
+from clickhouse_connect.driver.exceptions import OperationalError
 
 from apgar.config import Settings
 
@@ -30,12 +31,20 @@ async def create_client(settings: Settings, database: str | None = None) -> Any:
         "username": settings.clickhouse_user,
         "password": settings.clickhouse_password,
         "secure": secure,
+        "verify": settings.clickhouse_verify,
     }
+    if settings.clickhouse_ca_cert:
+        kwargs["ca_cert"] = settings.clickhouse_ca_cert
     if database is not None:
         kwargs["database"] = database
     elif settings.clickhouse_database:
         kwargs["database"] = settings.clickhouse_database
     return await clickhouse_connect.get_async_client(**kwargs)
+
+
+def is_unreachable(exc: BaseException) -> bool:
+    """True when ClickHouse could not be reached at all, as while it is still starting."""
+    return isinstance(exc, OperationalError)
 
 
 async def ping(client: Any) -> bool:

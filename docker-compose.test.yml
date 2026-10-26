@@ -5,6 +5,7 @@ services:
       CLICKHOUSE_USER: apgar
       CLICKHOUSE_PASSWORD: apgar_test
       CLICKHOUSE_DB: apgar
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
       - "18123:8123"
     healthcheck:

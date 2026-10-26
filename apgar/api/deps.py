@@ -112,9 +112,17 @@ async def require_ingest_token(request: Request) -> IngestToken:
 
 
 def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",", 1)[0].strip() or "unknown"
+    # Each proxy appends the address it received the request from, so only the last
+    # `trusted_proxy_hops` entries are trustworthy. Earlier entries are whatever the
+    # client sent.
+    hops: int = request.app.state.settings.trusted_proxy_hops
+    forwarded = [
+        part.strip()
+        for part in request.headers.get("x-forwarded-for", "").split(",")
+        if part.strip()
+    ]
+    if hops > 0 and forwarded:
+        return forwarded[-min(hops, len(forwarded))]
     client = request.client
     if client is None or not client.host:
         return "unknown"

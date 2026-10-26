@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import secrets
+
 import pytest
 
 from apgar.config import Settings
 from apgar.storage.clickhouse.event_store import ClickHouseEventStore
 from apgar.storage.clickhouse.meta_store import ClickHouseMetaStore
 from apgar.storage.clickhouse.migrate import (
+    EXPECTED_SCHEMA_VERSION,
     SchemaVersionError,
     check_schema_version,
     current_version,
     migrate,
+    stored_schema_version,
+    wait_for_schema,
 )
 
 pytestmark = pytest.mark.integration
@@ -76,3 +81,42 @@ async def test_schema_version_gate_ahead(
     )
     with pytest.raises(SchemaVersionError, match="newer than this image supports"):
         await check_schema_version(meta.client)
+
+
+async def test_migrate_creates_a_missing_database(
+    ch_database: tuple[Settings, ClickHouseEventStore, ClickHouseMetaStore],
+) -> None:
+    settings, _event_store, meta = ch_database
+    database = settings.clickhouse_database + "_new"
+    fresh = settings.model_copy(update={"clickhouse_database": database})
+    try:
+        assert await stored_schema_version(fresh) == 0
+        assert await migrate(fresh, timeout_seconds=5) == EXPECTED_SCHEMA_VERSION
+        assert await wait_for_schema(fresh, 0) == EXPECTED_SCHEMA_VERSION
+    finally:
+        await meta.client.command(f"DROP DATABASE IF EXISTS {database}")
+
+
+async def test_migrate_with_a_user_limited_to_its_database(
+    ch_database: tuple[Settings, ClickHouseEventStore, ClickHouseMetaStore],
+) -> None:
+    settings, _event_store, meta = ch_database
+    database = settings.clickhouse_database + "_scoped"
+    user = "apgar_scoped_" + secrets.token_hex(4)
+    password = secrets.token_hex(16)
+    await meta.client.command(f"CREATE DATABASE {database}")
+    await meta.client.command(f"CREATE USER {user} IDENTIFIED BY '{password}'")
+    try:
+        await meta.client.command(f"GRANT ALL ON {database}.* TO {user}")
+        scoped = settings.model_copy(
+            update={
+                "clickhouse_database": database,
+                "clickhouse_user": user,
+                "clickhouse_password": password,
+            }
+        )
+        assert await migrate(scoped) == EXPECTED_SCHEMA_VERSION
+        assert await wait_for_schema(scoped, 0) == EXPECTED_SCHEMA_VERSION
+    finally:
+        await meta.client.command(f"DROP USER IF EXISTS {user}")
+        await meta.client.command(f"DROP DATABASE IF EXISTS {database}")

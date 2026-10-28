@@ -1,6 +1,6 @@
 apiVersion: v2
 name: apgar
-description: Release health for LLM agents.
+description: Release health for AI agents.
 type: application
 # The chart is released together with the images, so both versions follow the app version.
 version: 0.1.2

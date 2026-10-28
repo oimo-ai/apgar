@@ -33,7 +33,7 @@ Send traces over OpenTelemetry or from Langfuse, tag each deploy with a release 
 
 ## Install
 
-Apgar runs on one host with Docker Compose: ClickHouse, the API, the worker, and the UI. It needs Docker with Compose v2, `curl`, and `openssl`.
+Apgar runs on Docker Compose or, with a Helm chart, on [Kubernetes](https://docs.useapgar.dev/self-hosting/kubernetes). Docker Compose needs Docker with Compose v2.
 
 ```bash
 mkdir apgar && cd apgar
@@ -48,10 +48,6 @@ docker compose up -d --wait
 ```
 
 Open http://localhost:8080 and sign in with the value of `APGAR_ADMIN_TOKEN` in `.env`. While no agent exists, the Agents page offers demo data to explore.
-
-On a server, set `APGAR_PUBLIC_URL` to the address people and exporters use, and terminate TLS in a reverse proxy in front of port 8080. Have the proxy send `X-Forwarded-For`, and add `APGAR_TRUSTED_PROXY_HOPS=2` to `.env` so the login rate limit sees each client's address instead of the proxy's.
-
-On Kubernetes, a Helm chart runs the same services, with ClickHouse in the release or your own. [Kubernetes](https://docs.useapgar.dev/self-hosting/kubernetes) covers the install, ingress, TLS, and external ClickHouse.
 
 ## Use with a coding agent
 

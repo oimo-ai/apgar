@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import cast
 
 import httpx
+import pytest
 from httpx import ASGITransport
 
 from apgar import __version__
@@ -125,6 +126,18 @@ def test_merge_metrics_keeps_worker_sample() -> None:
     assert "apgar_assembly_lag_seconds 12.0" in text
     assert "apgar_turns_assembled_total" in text
     assert "apgar_ingest_requests_total" in text
+
+
+def test_render_metrics_omits_worker_families_without_worker_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from apgar.api.metrics import render_metrics
+
+    monkeypatch.delenv("APGAR_WORKER_METRICS_URL", raising=False)
+    text = render_metrics().decode()
+    assert "apgar_ingest_requests_total" in text
+    assert "apgar_assembly_lag_seconds" not in text
+    assert "apgar_rollup_lag_seconds" not in text
 
 
 async def test_purge_resets_demo_agents(

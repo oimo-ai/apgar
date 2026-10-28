@@ -14,6 +14,7 @@ from apgar.config import Settings, load_settings
 from apgar.demo.generator import DEMO_CLOCK, purge, seed, simulate_verdicts
 from apgar.domain.time import utcnow
 from apgar.logging import setup_logging
+from apgar.net import listen_socket
 from apgar.normalize.normalizer import HmacKeys
 from apgar.security import SecretBox
 from apgar.storage.clickhouse.client import create_client
@@ -25,6 +26,7 @@ from apgar.storage.clickhouse.migrate import (
     check_schema_version,
     is_unknown_database,
     migrate,
+    wait_for_schema,
 )
 from apgar.verdict.evaluate import Evaluator
 from apgar.verdict.pool import InlinePool
@@ -57,11 +59,20 @@ async def _open_client(settings: Settings) -> Any:
         _fail(exc)
 
 
-async def _run_migrate() -> int:
+async def _run_migrate(timeout_seconds: int) -> int:
     settings = load_settings()
     setup_logging(settings.log_level)
     try:
-        return await migrate(settings)
+        return await migrate(settings, timeout_seconds)
+    except Exception as exc:
+        _fail(exc)
+
+
+async def _run_wait_for_schema(timeout_seconds: int) -> int:
+    settings = load_settings()
+    setup_logging(settings.log_level)
+    try:
+        return await wait_for_schema(settings, timeout_seconds)
     except Exception as exc:
         _fail(exc)
 
@@ -79,11 +90,13 @@ async def _run_api() -> None:
     app.state.client = client
     config = uvicorn.Config(
         app,
-        host=settings.api_host,
+        host=settings.api_host or "::",
         port=settings.api_port,
         log_config=None,
     )
-    await uvicorn.Server(config).serve()
+    # Without a host, the API listens on every IPv4 and IPv6 address.
+    sockets = None if settings.api_host else [listen_socket(settings.api_port)]
+    await uvicorn.Server(config).serve(sockets=sockets)
 
 
 async def _run_worker() -> None:
@@ -108,8 +121,31 @@ def main() -> None:
 
 
 @main.command("migrate")
-def migrate_command() -> None:
-    version = asyncio.run(_run_migrate())
+@click.option(
+    "--timeout",
+    "timeout_seconds",
+    default=0,
+    show_default=True,
+    type=click.IntRange(min=0),
+    help="Seconds to keep retrying while ClickHouse is unreachable.",
+)
+def migrate_command(timeout_seconds: int) -> None:
+    version = asyncio.run(_run_migrate(timeout_seconds))
+    click.echo(f"schema version {version}")
+
+
+@main.command("wait-for-schema")
+@click.option(
+    "--timeout",
+    "timeout_seconds",
+    default=300,
+    show_default=True,
+    type=click.IntRange(min=0),
+    help="Seconds to wait for the schema version this image expects.",
+)
+def wait_for_schema_command(timeout_seconds: int) -> None:
+    """Wait until `apgar migrate` has brought the schema to this version."""
+    version = asyncio.run(_run_wait_for_schema(timeout_seconds))
     click.echo(f"schema version {version}")
 
 

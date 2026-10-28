@@ -63,8 +63,17 @@ jobs:
           push: true
           tags: ${{ steps.meta-ui.outputs.tags }}
           labels: ${{ steps.meta-ui.outputs.labels }}
-  release:
+  chart:
     needs: [version, images]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+      - run: helm package deploy/helm/apgar --version "${{ needs.version.outputs.version }}" --app-version "${{ needs.version.outputs.version }}" --destination "$RUNNER_TEMP"
+      - run: helm push "$RUNNER_TEMP/apgar-${{ needs.version.outputs.version }}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
+  release:
+    needs: [version, images, chart]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,4 +90,10 @@ jobs:
             curl -fsSLO ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/docker-compose.yml
             docker compose pull
             docker compose up -d --wait
+            ```
+
+            On Kubernetes, back up ClickHouse, then upgrade the Helm chart to this version. Use the namespace you installed it in:
+
+            ```bash
+            helm upgrade apgar oci://ghcr.io/${{ github.repository_owner }}/charts/apgar --version ${{ needs.version.outputs.version }} -n apgar --reset-then-reuse-values
             ```

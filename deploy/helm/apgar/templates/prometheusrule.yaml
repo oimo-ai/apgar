@@ -1,0 +1,36 @@
+{{- if .Values.metrics.prometheusRule.enabled }}
+{{- $selector := printf "namespace=%q, service=~%q" .Release.Namespace (printf "%s-(api|worker)" (include "apgar.fullname" .)) }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "apgar.fullname" . }}
+  labels:
+    {{- include "apgar.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: apgar
+      rules:
+        - alert: ApgarDown
+          expr: up{ {{- $selector -}} } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Apgar {{ "{{ $labels.service }}" }} is not answering on /metrics."
+        - alert: ApgarAssemblyLagging
+          expr: max(apgar_assembly_lag_seconds{ {{- $selector -}} }) > 1800
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Traces have waited more than 30 minutes to become turns."
+        - alert: ApgarIngestStorageErrors
+          expr: sum(increase(apgar_ingest_storage_errors_total{ {{- $selector -}} }[10m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ingest requests failed while writing to ClickHouse."
+{{- end }}

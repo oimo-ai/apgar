@@ -14,7 +14,7 @@ from apgar.worker.main import run_worker
 
 @pytest.fixture(autouse=True)
 def _no_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(worker_main, "start_http_server", lambda port: None)
+    monkeypatch.setattr(worker_main, "start_http_server", lambda port, addr: None)
     monkeypatch.setattr(worker_main, "register_jobs", lambda *args: [])
 
 

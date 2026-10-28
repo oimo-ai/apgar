@@ -1,0 +1,40 @@
+{{- if .Values.clickhouse.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "apgar.fullname" . }}-clickhouse
+  labels:
+    {{- include "apgar.componentLabels" (dict "root" . "component" "clickhouse") | nindent 4 }}
+data:
+  # Logs go to the console only, so the container needs no writable log directory.
+  apgar-config.xml: |
+    <clickhouse>
+      <logger>
+        <level>warning</level>
+        <console>1</console>
+        <log remove="remove"/>
+        <errorlog remove="remove"/>
+      </logger>
+    </clickhouse>
+  # The password comes from the environment, so it never lands in the ConfigMap.
+  # The default user only accepts local connections.
+  apgar-users.xml: |
+    <clickhouse>
+      <users>
+        <default>
+          <networks replace="replace">
+            <ip>::1</ip>
+            <ip>127.0.0.1</ip>
+          </networks>
+        </default>
+        <{{ .Values.clickhouse.user }}>
+          <password from_env="CLICKHOUSE_PASSWORD"/>
+          <networks>
+            <ip>::/0</ip>
+          </networks>
+          <profile>default</profile>
+          <quota>default</quota>
+        </{{ .Values.clickhouse.user }}>
+      </users>
+    </clickhouse>
+{{- end }}

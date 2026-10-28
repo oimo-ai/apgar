@@ -1,0 +1,16 @@
+publicUrl: https://apgar.example.com
+existingSecret: apgar
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  tls:
+    secretName: apgar-tls
+networkPolicy:
+  enabled: true
+metrics:
+  serviceMonitor:
+    enabled: true
+  prometheusRule:
+    enabled: true

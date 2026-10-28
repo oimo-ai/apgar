@@ -1,0 +1,22 @@
+Apgar {{ .Chart.AppVersion }} is starting. The worker applies migrations first, then
+the API and the UI become ready:
+
+  kubectl -n {{ .Release.Namespace }} rollout status statefulset/{{ include "apgar.fullname" . }}-worker
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "apgar.fullname" . }}-api
+
+{{- if or .Values.ingress.enabled .Values.httpRoute.enabled }}
+
+Open {{ .Values.publicUrl }} and sign in with APGAR_ADMIN_TOKEN from the Secret
+{{ include "apgar.secretName" . }}.
+{{- else }}
+
+No ingress or route is enabled. To open the UI from this machine:
+
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "apgar.fullname" . }}-ui 8080:{{ .Values.ui.service.port }}
+
+Then open http://localhost:8080 and sign in with APGAR_ADMIN_TOKEN from the Secret
+{{ include "apgar.secretName" . }}.
+{{- end }}
+
+Exporters send OTLP over HTTP to {{ .Values.publicUrl }}/v1/traces. Exporters in this
+cluster can also use http://{{ include "apgar.fullname" . }}-api.{{ .Release.Namespace }}.svc:8000/v1/traces.

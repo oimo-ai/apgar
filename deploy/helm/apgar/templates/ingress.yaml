@@ -1,0 +1,33 @@
+{{- if .Values.ingress.enabled }}
+{{- /* ingress-nginx limits bodies to 1 MiB and buffers them. OTLP ingest bodies are larger. */}}
+{{- $defaults := dict "nginx.ingress.kubernetes.io/proxy-body-size" "64m" "nginx.ingress.kubernetes.io/proxy-request-buffering" "off" "nginx.ingress.kubernetes.io/proxy-read-timeout" "120" }}
+{{- $host := default (include "apgar.publicHost" .) .Values.ingress.host }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "apgar.fullname" . }}
+  labels:
+    {{- include "apgar.componentLabels" (dict "root" . "component" "ui") | nindent 4 }}
+  annotations:
+    {{- merge (deepCopy .Values.ingress.annotations) $defaults | toYaml | nindent 4 }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.secretName }}
+  tls:
+    - hosts: [{{ $host | quote }}]
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "apgar.fullname" . }}-ui
+                port:
+                  name: http
+{{- end }}

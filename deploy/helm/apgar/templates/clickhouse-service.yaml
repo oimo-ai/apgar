@@ -1,0 +1,16 @@
+{{- if .Values.clickhouse.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "apgar.fullname" . }}-clickhouse
+  labels:
+    {{- include "apgar.componentLabels" (dict "root" . "component" "clickhouse") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "apgar.selectorLabels" (dict "root" . "component" "clickhouse") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8123
+      targetPort: http
+{{- end }}

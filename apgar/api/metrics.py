@@ -104,8 +104,6 @@ def merge_metrics(local: bytes, remote: bytes) -> bytes:
 
 
 def render_metrics() -> bytes:
-    local = _local_metrics()
-    remote = _worker_metrics()
-    if not remote:
-        return local
-    return merge_metrics(local, remote)
+    # The worker records these families. The API only forwards them, when
+    # APGAR_WORKER_METRICS_URL is set, so its own zero values never shadow the worker's.
+    return merge_metrics(_local_metrics(), _worker_metrics())

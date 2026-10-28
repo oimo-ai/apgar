@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
+from types import SimpleNamespace
 
 import httpx
+import pytest
 from httpx import ASGITransport
+from starlette.requests import Request
 
 from apgar.api.app import create_app
+from apgar.api.deps import _client_ip
 from apgar.api.session import issue_session, verify_session_cookie
 from apgar.config import Settings
 from apgar.storage.memory import InMemoryEventStore, InMemoryMetaStore
@@ -155,6 +160,88 @@ async def test_login_rate_limit_429(
     )
     assert blocked.status_code == 429
     assert blocked.json()["error"]["code"] == "rate_limited"
+
+
+async def test_login_rate_limit_ignores_a_spoofed_forwarded_for(
+    app_client: httpx.AsyncClient,
+) -> None:
+    for attempt in range(10):
+        headers = {"X-Forwarded-For": f"198.51.100.{attempt}, 203.0.113.9"}
+        response = await app_client.post(
+            "/api/v1/auth/login", json={"token": "not-the-admin-token"}, headers=headers
+        )
+        assert response.status_code == 401
+    blocked = await app_client.post(
+        "/api/v1/auth/login",
+        json={"token": "not-the-admin-token"},
+        headers={"X-Forwarded-For": "198.51.100.99, 203.0.113.9"},
+    )
+    assert blocked.status_code == 429
+
+
+def _request(hops: int, forwarded: str | None) -> Request:
+    settings = SimpleNamespace(trusted_proxy_hops=hops)
+    headers = [] if forwarded is None else [(b"x-forwarded-for", forwarded.encode())]
+    scope = {
+        "type": "http",
+        "headers": headers,
+        "client": ("10.0.0.5", 41000),
+        "app": SimpleNamespace(state=SimpleNamespace(settings=settings)),
+    }
+    return Request(scope)
+
+
+@pytest.mark.parametrize(
+    ("hops", "forwarded", "expected"),
+    [
+        (1, "203.0.113.9", "203.0.113.9"),
+        (1, "spoofed, 203.0.113.9", "203.0.113.9"),
+        (2, "spoofed, 203.0.113.9, 10.0.0.2", "203.0.113.9"),
+        (3, "203.0.113.9, 10.0.0.2", "203.0.113.9"),
+        (0, "203.0.113.9", "10.0.0.5"),
+        (1, None, "10.0.0.5"),
+        (1, " , ", "10.0.0.5"),
+    ],
+)
+def test_client_ip_trusts_only_the_configured_proxies(
+    hops: int, forwarded: str | None, expected: str
+) -> None:
+    assert _client_ip(_request(hops, forwarded)) == expected
+
+
+def test_client_ip_warns_once_about_an_uncounted_proxy(caplog: pytest.LogCaptureFixture) -> None:
+    # A reverse proxy on the Compose host appends the client, then apgar-ui appends the
+    # proxy's container address, while APGAR_TRUSTED_PROXY_HOPS is still 1.
+    request = _request(1, "203.0.113.9, 172.18.0.5")
+    with caplog.at_level(logging.WARNING, logger="apgar.api"):
+        assert _client_ip(request) == "172.18.0.5"
+        assert _client_ip(request) == "172.18.0.5"
+    warnings = [record for record in caplog.records if record.name == "apgar.api"]
+    assert len(warnings) == 1
+    assert getattr(warnings[0], "trusted_proxy_hops", None) == 1
+    assert getattr(warnings[0], "forwarded_entries", None) == 2
+
+
+@pytest.mark.parametrize(
+    ("hops", "forwarded"),
+    [
+        # Only apgar-ui in front, as on localhost.
+        (1, "172.17.0.1"),
+        # A client that adds its own entries keeps its public address in the counted spot.
+        # Python counts documentation ranges such as 203.0.113.0/24 as private, so this
+        # case needs a routable address.
+        (1, "10.0.0.9, 8.8.8.8"),
+        # The ingress hop is counted.
+        (2, "203.0.113.9, 10.42.0.7"),
+        (1, "spoofed, not-an-address"),
+    ],
+)
+def test_client_ip_does_not_warn_when_the_proxies_are_counted(
+    hops: int, forwarded: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="apgar.api"):
+        _client_ip(_request(hops, forwarded))
+    assert not [record for record in caplog.records if record.name == "apgar.api"]
 
 
 async def test_logout_clears_cookie(app_client: httpx.AsyncClient, settings: Settings) -> None:

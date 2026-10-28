@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
 from apgar.config import Settings
-from apgar.storage.clickhouse.client import create_client
+from apgar.storage.clickhouse.client import create_client, is_unreachable
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 _MIGRATION_NAME = re.compile(r"^(\d{4})_([a-z0-9_]+)\.sql$")
 _IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 _STATEMENT_SPLIT = re.compile(r";[ \t]*\n")
 _LOG = logging.getLogger("apgar.storage.clickhouse.migrate")
+RETRY_SECONDS = 2.0
 
 _SCHEMA_MIGRATIONS_DDL = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -123,9 +127,27 @@ async def apply_sql(client: Any, sql: str) -> None:
         await client.command(statement, settings={"mutations_sync": 2})
 
 
-async def migrate(settings: Settings) -> int:
+async def retry_while_unreachable[T](
+    action: Callable[[], Awaitable[T]],
+    timeout_seconds: float,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> T:
+    """Run action, retrying while ClickHouse is unreachable for up to timeout_seconds."""
+    deadline = monotonic() + timeout_seconds
+    while True:
+        try:
+            return await action()
+        except Exception as exc:
+            if not is_unreachable(exc) or monotonic() >= deadline:
+                raise
+            _LOG.info("waiting for clickhouse", extra={"error": str(exc)})
+        await sleep(RETRY_SECONDS)
+
+
+async def migrate(settings: Settings, timeout_seconds: float = 0) -> int:
     migrations = list_migrations()
-    await ensure_database(settings)
+    await retry_while_unreachable(lambda: ensure_database(settings), timeout_seconds)
     client = await create_client(settings)
     applied = 0
     try:
@@ -159,3 +181,40 @@ async def check_schema_version(client: Any) -> None:
         raise
     if found != expected:
         raise SchemaVersionError(found, expected)
+
+
+async def stored_schema_version(settings: Settings) -> int:
+    try:
+        client = await create_client(settings)
+    except Exception as exc:
+        if is_unknown_database(exc):
+            return 0
+        raise
+    try:
+        return await current_version(client)
+    finally:
+        await client.close()
+
+
+async def wait_for_schema(
+    settings: Settings,
+    timeout_seconds: float,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> int:
+    """Wait until another process has migrated the schema to the version of this image."""
+    expected = expected_schema_version()
+    deadline = monotonic() + timeout_seconds
+    while True:
+        found = await retry_while_unreachable(
+            lambda: stored_schema_version(settings),
+            max(0.0, deadline - monotonic()),
+            sleep,
+            monotonic,
+        )
+        if found == expected:
+            return found
+        if found > expected or monotonic() >= deadline:
+            raise SchemaVersionError(found, expected)
+        _LOG.info("waiting for migrations", extra={"found": found, "expected": expected})
+        await sleep(RETRY_SECONDS)

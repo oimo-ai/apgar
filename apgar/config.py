@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import math
 import os
 import sys
 import uuid
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 
 from pydantic import Field, ValidationError, field_validator
@@ -12,8 +14,40 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 EARLY_PERIOD = timedelta(hours=2)
 
 
+CGROUP_ROOT = Path("/sys/fs/cgroup")
+
+
+def cgroup_cpu_limit(root: Path = CGROUP_ROOT) -> float | None:
+    """CPU limit of the container from cgroup v2 or v1, or None when it has none."""
+    try:
+        quota_text, period_text = (root / "cpu.max").read_text(encoding="utf-8").split()
+        if quota_text == "max":
+            return None
+        quota, period = int(quota_text), int(period_text)
+    except (OSError, ValueError):
+        try:
+            quota = int((root / "cpu" / "cpu.cfs_quota_us").read_text(encoding="utf-8"))
+            period = int((root / "cpu" / "cpu.cfs_period_us").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+    if quota <= 0 or period <= 0:
+        return None
+    return quota / period
+
+
+def available_cpus(root: Path = CGROUP_ROOT) -> int:
+    # os.cpu_count() reports the host, so a container with a CPU limit would start
+    # one evaluator process per host CPU.
+    count = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else 0
+    count = count or os.cpu_count() or 1
+    limit = cgroup_cpu_limit(root)
+    if limit is not None:
+        count = min(count, max(1, math.ceil(limit)))
+    return count
+
+
 def _default_evaluator_processes() -> int:
-    return max(1, (os.cpu_count() or 2) - 1)
+    return max(1, available_cpus() - 1)
 
 
 def _default_instance_id() -> str:
@@ -27,13 +61,16 @@ class Settings(BaseSettings):
     clickhouse_user: str = "apgar"
     clickhouse_password: str = ""
     clickhouse_database: str = "apgar"
+    clickhouse_ca_cert: str | None = None
+    clickhouse_verify: bool = True
     secret_key: str = ""
     secret_key_previous: str | None = None
     admin_token: str = ""
-    api_host: str = "0.0.0.0"
+    api_host: str | None = None
     api_port: int = 8000
     public_url: str = "http://localhost:8080"
     cookie_secure: bool = False
+    trusted_proxy_hops: int = Field(default=1, ge=0)
     log_level: str = "INFO"
     late_span_days: int = Field(default=7, ge=1)
     max_body_bytes: int = 33554432
@@ -81,9 +118,9 @@ class Settings(BaseSettings):
             return value[:-1]
         return value
 
-    @field_validator("secret_key_previous")
+    @field_validator("secret_key_previous", "clickhouse_ca_cert", "api_host")
     @classmethod
-    def _empty_previous_is_unset(cls, value: str | None) -> str | None:
+    def _empty_is_unset(cls, value: str | None) -> str | None:
         if value == "":
             return None
         return value

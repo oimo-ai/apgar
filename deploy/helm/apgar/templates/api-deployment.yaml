@@ -1,0 +1,99 @@
+{{- include "apgar.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "apgar.fullname" . }}-api
+  labels:
+    {{- include "apgar.componentLabels" (dict "root" . "component" "api") | nindent 4 }}
+spec:
+  {{- if not .Values.api.autoscaling.enabled }}
+  replicas: {{ .Values.api.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "apgar.selectorLabels" (dict "root" . "component" "api") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "apgar.componentLabels" (dict "root" . "component" "api") | nindent 8 }}
+      annotations:
+        {{- include "apgar.secretChecksum" . | nindent 8 }}
+        {{- with .Values.api.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      # Service links would inject APGAR_API_PORT and similar variables, which Apgar
+      # reads as settings.
+      enableServiceLinks: false
+      serviceAccountName: {{ include "apgar.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "apgar.podSecurityContext" (dict "root" . "uid" 10001) | nindent 8 }}
+      initContainers:
+        # The worker applies migrations. The API starts once the schema matches this image.
+        - name: wait-for-schema
+          image: {{ include "apgar.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["wait-for-schema", "--timeout", "{{ .Values.api.schemaWaitSeconds }}"]
+          env:
+            {{- include "apgar.env" . | nindent 12 }}
+          {{- include "apgar.envFrom" . | nindent 10 }}
+          securityContext:
+            {{- include "apgar.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "apgar.volumeMounts" . | nindent 12 }}
+      containers:
+        - name: api
+          image: {{ include "apgar.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["api"]
+          env:
+            {{- include "apgar.env" . | nindent 12 }}
+          {{- include "apgar.envFrom" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: 8000
+          # Startup takes about 30 seconds on a busy two CPU node. Liveness starts after it.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          securityContext:
+            {{- include "apgar.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "apgar.volumeMounts" . | nindent 12 }}
+      volumes:
+        {{- include "apgar.volumes" . | nindent 8 }}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

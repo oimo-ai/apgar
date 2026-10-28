@@ -1,0 +1,14 @@
+apiVersion: v2
+name: apgar
+description: Release health for LLM agents.
+type: application
+# The chart is released together with the images, so both versions follow the app version.
+version: 0.1.2
+appVersion: "0.1.2"
+home: https://docs.useapgar.dev
+sources:
+  - https://github.com/oimo-ai/apgar
+keywords:
+  - llm
+  - agents
+  - opentelemetry

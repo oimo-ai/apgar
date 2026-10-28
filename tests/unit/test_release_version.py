@@ -47,6 +47,12 @@ def _repo(root: Path, version: str, apgar_image: str, ui_image: str) -> Path:
     (root / "uv.lock").write_text(
         f'version = 1\n\n[[package]]\nname = "apgar"\nversion = "{version}"\n', encoding="utf-8"
     )
+    chart = root / "deploy" / "helm" / "apgar" / "Chart.yaml"
+    chart.parent.mkdir(parents=True)
+    chart.write_text(
+        f'apiVersion: v2\nname: apgar\nversion: {version}\nappVersion: "{version}"\n',
+        encoding="utf-8",
+    )
     compose = COMPOSE.format(apgar=apgar_image, ui=ui_image)
     (root / "docker-compose.yml").write_text(compose, encoding="utf-8")
     return root
@@ -113,6 +119,16 @@ def test_reports_places_that_are_missing(tmp_path: Path) -> None:
     ]
 
 
+def test_reports_a_chart_that_disagrees(tmp_path: Path) -> None:
+    script = _script()
+    root = _repo(tmp_path, "0.2.0", "0.2.0", "0.2.0")
+    chart = root / "deploy" / "helm" / "apgar" / "Chart.yaml"
+    chart.write_text('version: 0.2.0\nappVersion: "0.1.0"\n', encoding="utf-8")
+    assert script.mismatches(script.parse_tag("v0.2.0"), root) == [
+        "Chart.yaml appVersion has 0.1.0, tag v0.2.0 needs 0.2.0",
+    ]
+
+
 def test_render_pins_both_images_to_the_prerelease(tmp_path: Path) -> None:
     script = _script()
     root = _repo(tmp_path, "0.2.0", "0.2.0", "0.2.0")
@@ -158,7 +174,7 @@ def test_set_changes_only_the_version_lines(tmp_path: Path) -> None:
             if old != new:
                 assert new == old.replace(apgar.__version__, "9.8.7")
                 changed += 1
-    assert changed == 8
+    assert changed == 10
 
 
 def test_set_keeps_the_prerelease_in_the_tag(

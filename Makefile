@@ -1,4 +1,4 @@
-.PHONY: sync lint format typecheck test-unit test-integration test test-coverage ch-test-up ch-test-down docker-build up down ci ui-install ui-lint ui-typecheck ui-test ui-test-coverage ui-build e2e licenses version
+.PHONY: chart-lint chart-smoke sync lint format typecheck test-unit test-integration test test-coverage ch-test-up ch-test-down docker-build up down ci ui-install ui-lint ui-typecheck ui-test ui-test-coverage ui-build e2e licenses version
 
 COMPOSE_DEV = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
@@ -72,3 +72,9 @@ version:
 
 licenses:
 	uv run python scripts/check_licenses.py
+
+chart-lint:
+	for values in deploy/helm/apgar/ci/*.yaml; do helm lint --strict deploy/helm/apgar -f "$$values" || exit 1; done
+
+chart-smoke:
+	scripts/chart_smoke.sh

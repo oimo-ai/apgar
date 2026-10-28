@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ssl
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -44,7 +45,16 @@ async def create_client(settings: Settings, database: str | None = None) -> Any:
 
 def is_unreachable(exc: BaseException) -> bool:
     """True when ClickHouse could not be reached at all, as while it is still starting."""
-    return isinstance(exc, OperationalError)
+    if not isinstance(exc, OperationalError):
+        return False
+    # The driver raises a certificate that does not verify as a network error too. It is
+    # a configuration error that waiting does not fix.
+    cause = exc.__cause__
+    while cause is not None:
+        if isinstance(cause, ssl.SSLCertVerificationError):
+            return False
+        cause = cause.__cause__
+    return True
 
 
 async def ping(client: Any) -> bool:

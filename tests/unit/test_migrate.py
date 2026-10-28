@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ssl
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -105,6 +106,35 @@ async def test_retry_does_not_retry_other_errors() -> None:
     with pytest.raises(DatabaseError):
         await retry_while_unreachable(action, 60, clock.sleep, clock.monotonic)
     assert clock.sleeps == []
+
+
+async def test_retry_does_not_retry_a_certificate_that_does_not_verify() -> None:
+    clock = FakeTime()
+    try:
+        raise OperationalError("Network Error: Cannot connect to host") from (
+            ssl.SSLCertVerificationError(
+                1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed"
+            )
+        )
+    except OperationalError as exc:
+        unverified = exc
+    action = _failing_then([unverified, 1])
+    with pytest.raises(OperationalError):
+        await retry_while_unreachable(action, 60, clock.sleep, clock.monotonic)
+    assert clock.sleeps == []
+
+
+async def test_retry_waits_through_a_refused_connection() -> None:
+    clock = FakeTime()
+    try:
+        raise OperationalError(
+            "Network Error: Cannot connect to host"
+        ) from ConnectionRefusedError()
+    except OperationalError as exc:
+        refused = exc
+    action = _failing_then([refused, 3])
+    assert await retry_while_unreachable(action, 10, clock.sleep, clock.monotonic) == 3
+    assert clock.sleeps == [2.0]
 
 
 async def test_zero_timeout_tries_once() -> None:

@@ -12,6 +12,11 @@ spec:
   serviceName: {{ include "apgar.fullname" . }}-worker
   # Exactly one worker may run. It is the only process that applies migrations.
   replicas: 1
+  # With OrderedReady, a worker that never became ready, such as one whose migrate init
+  # container cannot reach ClickHouse, blocks the next rollout, so correcting the values
+  # does not replace it. Parallel replaces it. The StatefulSet still runs at most one pod
+  # per name. The field cannot change on an existing StatefulSet.
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       {{- include "apgar.selectorLabels" (dict "root" . "component" "worker") | nindent 6 }}

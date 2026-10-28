@@ -48,6 +48,25 @@ helm test apgar -n "${NAMESPACE}"
 release upgrade --set worker.podAnnotations.smoke=upgrade
 helm test apgar -n "${NAMESPACE}"
 
+# A worker that never becomes ready must not block the upgrade that corrects its values.
+# The memory limit kills the migrate init container, so the worker never gets ready.
+helm upgrade apgar "${CHART}" -n "${NAMESPACE}" --reuse-values \
+  --set worker.resources.requests.memory=24Mi --set worker.resources.limits.memory=24Mi
+for _ in $(seq 1 60); do
+  update="$(kubectl -n "${NAMESPACE}" get statefulset apgar-worker -o jsonpath='{.status.updateRevision}')"
+  worker="$(kubectl -n "${NAMESPACE}" get pod apgar-worker-0 \
+    -o jsonpath='{.metadata.labels.controller-revision-hash} {.status.conditions[?(@.type=="Ready")].status}' \
+    2>/dev/null || true)"
+  [[ "${worker}" == "${update} False" ]] && break
+  sleep 2
+done
+if [[ "${worker}" != "${update} False" ]]; then
+  echo "the broken worker did not start: ${worker}" >&2
+  exit 1
+fi
+release upgrade
+helm test apgar -n "${NAMESPACE}"
+
 restarts="$(kubectl -n "${NAMESPACE}" get pods -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.restartCount}{"\n"}{end}{end}' | sort -n | tail -1)"
 kubectl -n "${NAMESPACE}" get pods
 if [[ "${restarts}" != "0" ]]; then

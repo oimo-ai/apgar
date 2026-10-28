@@ -58,6 +58,13 @@ spec:
           ports:
             - name: http
               containerPort: 8000
+          # Startup takes about 30 seconds on a busy two CPU node. Liveness starts after it.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /readyz

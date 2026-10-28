@@ -24,7 +24,7 @@ docker compose up -d --wait
 
 Open http://localhost:8080 and sign in with the value of `APGAR_ADMIN_TOKEN` in `.env`. While no agent exists, the Agents page offers demo data to explore.
 
-On a server, set `APGAR_PUBLIC_URL` to the address people and exporters use, and terminate TLS in a reverse proxy in front of port 8080.
+On a server, set `APGAR_PUBLIC_URL` to the address people and exporters use, and terminate TLS in a reverse proxy in front of port 8080. Have the proxy send `X-Forwarded-For`, and add `APGAR_TRUSTED_PROXY_HOPS=2` to `.env` so the login rate limit sees each client's address instead of the proxy's.
 
 ### Kubernetes
 

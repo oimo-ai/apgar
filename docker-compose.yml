@@ -12,6 +12,8 @@ x-apgar: &apgar
     APGAR_CLICKHOUSE_DATABASE: apgar
     APGAR_SECRET_KEY: ${APGAR_SECRET_KEY:?set it in .env}
     APGAR_ADMIN_TOKEN: ${APGAR_ADMIN_TOKEN:?set it in .env}
+    # Proxies that append to X-Forwarded-For, counting apgar-ui. Set 2 in .env behind a reverse proxy.
+    APGAR_TRUSTED_PROXY_HOPS: ${APGAR_TRUSTED_PROXY_HOPS:-1}
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:25.8

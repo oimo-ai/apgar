@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ipaddress
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,6 +17,7 @@ from apgar.domain.models import IngestToken
 from apgar.security import constant_time_equals, hash_token
 from apgar.storage.interfaces import MetaStore
 
+_LOG = logging.getLogger("apgar.api")
 _TOKEN_TTL_SECONDS = 60
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
@@ -122,11 +125,37 @@ def _client_ip(request: Request) -> str:
         if part.strip()
     ]
     if hops > 0 and forwarded:
-        return forwarded[-min(hops, len(forwarded))]
+        address = forwarded[-min(hops, len(forwarded))]
+        if len(forwarded) > hops:
+            _warn_if_uncounted_proxy(request, address, hops, len(forwarded))
+        return address
     client = request.client
     if client is None or not client.host:
         return "unknown"
     return client.host
+
+
+def _warn_if_uncounted_proxy(request: Request, address: str, hops: int, entries: int) -> None:
+    # A private address with more entries to its left is usually a reverse proxy in
+    # front of the UI that APGAR_TRUSTED_PROXY_HOPS does not count. Every login would
+    # then share that proxy's rate limit. A client that only adds entries of its own
+    # leaves its public address here, so it does not trigger the warning.
+    state = request.app.state
+    if getattr(state, "uncounted_proxy_warned", False) or not _is_private(address):
+        return
+    state.uncounted_proxy_warned = True
+    _LOG.warning(
+        "x-forwarded-for has a private address where the client should be; "
+        "count every proxy in front of apgar in APGAR_TRUSTED_PROXY_HOPS",
+        extra={"trusted_proxy_hops": hops, "forwarded_entries": entries},
+    )
+
+
+def _is_private(address: str) -> bool:
+    try:
+        return ipaddress.ip_address(address).is_private
+    except ValueError:
+        return False
 
 
 class LoginLimiter:

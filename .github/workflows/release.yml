@@ -92,8 +92,8 @@ jobs:
             docker compose up -d --wait
             ```
 
-            On Kubernetes, upgrade the Helm chart to this version:
+            On Kubernetes, back up ClickHouse, then upgrade the Helm chart to this version. Use the namespace you installed it in:
 
             ```bash
-            helm upgrade apgar oci://ghcr.io/${{ github.repository_owner }}/charts/apgar --version ${{ needs.version.outputs.version }} --reuse-values
+            helm upgrade apgar oci://ghcr.io/${{ github.repository_owner }}/charts/apgar --version ${{ needs.version.outputs.version }} -n apgar --reset-then-reuse-values
             ```

@@ -8,6 +8,8 @@ The name refers to the Apgar score, a standardized health check performed on a n
 
 ## Install
 
+### Docker Compose
+
 Apgar runs on one host with Docker Compose: ClickHouse, the API, the worker, and the UI. It needs Docker with Compose v2, `curl`, and `openssl`.
 
 ```bash
@@ -37,10 +39,14 @@ kubectl -n apgar create secret generic apgar \
   --from-literal=APGAR_ADMIN_TOKEN=$(openssl rand -hex 16) \
   --from-literal=APGAR_CLICKHOUSE_PASSWORD=$(openssl rand -hex 16)
 helm install apgar oci://ghcr.io/oimo-ai/charts/apgar -n apgar \
-  --set existingSecret=apgar --set publicUrl=https://apgar.example.com
+  --set existingSecret=apgar --set publicUrl=http://localhost:8080
+kubectl -n apgar rollout status deployment/apgar-api
+kubectl -n apgar port-forward service/apgar-ui 8080:80
 ```
 
-[Kubernetes](https://docs.useapgar.dev/self-hosting/kubernetes) covers ingress, external ClickHouse, and upgrades.
+Open http://localhost:8080 and sign in with the admin token, which `kubectl -n apgar get secret apgar -o jsonpath='{.data.APGAR_ADMIN_TOKEN}' | base64 -d` prints.
+
+In a cluster that people and exporters reach, set `publicUrl` to that address and add `--set ingress.enabled=true`. The ingress serves the host of `publicUrl`. [Kubernetes](https://docs.useapgar.dev/self-hosting/kubernetes) covers ingress, TLS, external ClickHouse, and upgrades.
 
 ## Use with a coding agent
 
@@ -60,6 +66,8 @@ Use the Apgar skill. Look at this codebase and tell me what has to change so tha
 
 ## Upgrade
 
+### Docker Compose
+
 Every release attaches a `docker-compose.yml` that pins its images. Read the release notes and back up the ClickHouse volume, then replace the Compose file and start the new version:
 
 ```bash
@@ -68,7 +76,15 @@ docker compose pull
 docker compose up -d --wait
 ```
 
-On Kubernetes, `helm upgrade` applies the migrations before the new API starts.
+### Kubernetes
+
+On Kubernetes, read the release notes and back up ClickHouse, then upgrade the chart. The worker applies the migrations before the new API starts:
+
+```bash
+helm upgrade apgar oci://ghcr.io/oimo-ai/charts/apgar -n apgar --reset-then-reuse-values
+```
+
+`--reset-then-reuse-values` keeps the values you set and applies the defaults of the new chart.
 
 ## Development
 

@@ -113,9 +113,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
       - run: make chart-lint
+      # Pinned: kind-action defaults to Kubernetes v1.35.0. Its StatefulSet controller does
+      # not replace a worker that never became ready, so the smoke test fails there.
       - uses: helm/kind-action@v1
         with:
           cluster_name: apgar
+          version: v0.33.0
+          node_image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
       - run: docker build -t apgar:dev .
       - run: docker build -t apgar-ui:dev -f ui/Dockerfile .
       - run: kind load docker-image apgar:dev apgar-ui:dev --name apgar

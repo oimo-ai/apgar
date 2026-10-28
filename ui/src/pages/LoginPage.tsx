@@ -57,7 +57,7 @@ export function LoginPage() {
           <span>Apgar</span>
         </div>
         <div className="login-brand-body">
-          <p className="login-kicker">Release health for LLM agents</p>
+          <p className="login-kicker">Release health for AI agents</p>
           <h1 className="login-headline">Did the latest release make your agent worse?</h1>
           <p className="login-lede">
             Apgar compares each new release with the one before it, using the traces you already collect, and shows

@@ -9,6 +9,7 @@ import {
   useAgentReleases,
   useAgents,
   useConnections,
+  useDemoRegression,
   useEvaluations,
   useEvents,
   useIngestTokens,
@@ -31,7 +32,9 @@ function wrap(queryClient: QueryClient) {
   };
 }
 
-type Refetch = (query: { state: { data?: { final?: boolean } } }) => number | false;
+type Refetch = (query: {
+  state: { data?: { final?: boolean; demo_seeding?: boolean; is_demo?: boolean; agent_is_demo?: boolean } };
+}) => number | false;
 
 function interval(queryClient: QueryClient, queryKey: readonly unknown[]): unknown {
   const query = queryClient.getQueryCache().find({ queryKey });
@@ -113,8 +116,10 @@ describe("queries", () => {
       );
     });
     expect(vi.mocked(fetch).mock.calls.map((call) => String(call[0])).some((url) => url.endsWith("/agents/"))).toBe(false);
-    expect(interval(queryClient, ["status"])).toBe(10_000);
-    expect(interval(queryClient, ["agents"])).toBe(5_000);
+    const statusInterval = asRefetch(interval(queryClient, ["status"]));
+    expect(statusInterval({ state: { data: undefined } })).toBe(10_000);
+    expect(statusInterval({ state: { data: { demo_seeding: true } } })).toBe(2_000);
+    expect(interval(queryClient, ["agents"])).toBe(2_000);
     expect(interval(queryClient, ["evaluations", "a", "live"])).toBe(60_000);
     expect(interval(queryClient, ["events", "a", "live"])).toBe(60_000);
   });
@@ -140,6 +145,29 @@ describe("queries", () => {
     expect(interval(open, ["evaluations", "a", "open"])).toBe(false);
     expect(interval(open, ["events", "a", "open"])).toBe(false);
     expect(interval(open, ["agents"])).toBe(30_000);
+  });
+
+  it("polls demo pages while the demo loads", () => {
+    const seeding = freshClient();
+    renderHook(() => useAgent("demo", true), { wrapper: wrap(seeding) });
+    renderHook(() => useAgentReleases("demo", true), { wrapper: wrap(seeding) });
+    renderHook(() => useRelease("demo", "r1", false, true), { wrapper: wrap(seeding) });
+    renderHook(() => useDemoRegression("demo", true), { wrapper: wrap(seeding) });
+    const agentInterval = asRefetch(interval(seeding, ["agent", "demo"]));
+    expect(agentInterval({ state: { data: { is_demo: true } } })).toBe(2_000);
+    expect(agentInterval({ state: { data: { is_demo: false } } })).toBe(false);
+    expect(interval(seeding, ["releases", { agent: "demo", scope: "agent" }])).toBe(2_000);
+    const releaseInterval = asRefetch(interval(seeding, ["release", "demo", "r1"]));
+    expect(releaseInterval({ state: { data: { agent_is_demo: true, final: false } } })).toBe(2_000);
+    expect(releaseInterval({ state: { data: { agent_is_demo: true, final: true } } })).toBe(false);
+    expect(releaseInterval({ state: { data: { agent_is_demo: false, final: true } } })).toBe(false);
+    expect(interval(seeding, ["demo-regression", "demo"])).toBe(2_000);
+
+    const idle = freshClient();
+    renderHook(() => useAgent("demo"), { wrapper: wrap(idle) });
+    renderHook(() => useAgentReleases("demo"), { wrapper: wrap(idle) });
+    expect(asRefetch(interval(idle, ["agent", "demo"]))({ state: { data: { is_demo: true } } })).toBe(false);
+    expect(interval(idle, ["releases", { agent: "demo", scope: "agent" }])).toBe(false);
   });
 
   it("invalidates the given keys and posts with or without a body", async () => {

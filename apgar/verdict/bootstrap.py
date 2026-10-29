@@ -101,20 +101,42 @@ def _ratio_diffs(
     return diff
 
 
-def _percentile_diffs(
-    weight_c: np.ndarray, weight_b: np.ndarray, column: PercentileColumn
-) -> np.ndarray:
-    candidate = _rows_quantile(weight_c, column.sc, column.vc, column.q)
-    baseline = _rows_quantile(weight_b, column.sb, column.vb, column.q)
+def _percentile_diffs(candidate: np.ndarray, baseline: np.ndarray, rel: bool) -> np.ndarray:
     with np.errstate(divide="ignore", invalid="ignore"):
-        diff = (candidate - baseline) / baseline if column.rel else candidate - baseline
+        diff = (candidate - baseline) / baseline if rel else candidate - baseline
     out = np.asarray(diff, dtype=np.float64)
     out[~np.isfinite(out)] = np.nan
     return out
 
 
+def _distinct_sides(
+    sides: list[tuple[float, np.ndarray, np.ndarray]],
+) -> tuple[list[tuple[float, np.ndarray, np.ndarray]], list[int]]:
+    # A slice that covers every session, such as the only model an agent uses,
+    # repeats the agent-wide column exactly, so each distinct side runs once.
+    distinct: list[tuple[float, np.ndarray, np.ndarray]] = []
+    positions: list[int] = []
+    for quantile, session_index, values in sides:
+        for position, (seen_quantile, seen_index, seen_values) in enumerate(distinct):
+            if (
+                seen_quantile == quantile
+                and np.array_equal(seen_index, session_index)
+                and np.array_equal(seen_values, values)
+            ):
+                positions.append(position)
+                break
+        else:
+            positions.append(len(distinct))
+            distinct.append((quantile, session_index, values))
+    return distinct, positions
+
+
 def _rows_quantile(
-    weights: np.ndarray, session_index: np.ndarray, sorted_values: np.ndarray, quantile: float
+    weights: np.ndarray,
+    float_weights: np.ndarray,
+    session_index: np.ndarray,
+    sorted_values: np.ndarray,
+    quantile: float,
 ) -> np.ndarray:
     count = int(sorted_values.size)
     rows = int(weights.shape[0])
@@ -122,13 +144,13 @@ def _rows_quantile(
         return np.full(rows, np.nan)
     if count <= 4096:
         gathered = weights[:, session_index]
-        cumulative = np.cumsum(gathered, axis=1)
+        cumulative = np.cumsum(gathered, axis=1, dtype=weights.dtype)
         total = cumulative[:, -1]
         index = np.argmax(cumulative >= (quantile * total)[:, None], axis=1)
         chosen = sorted_values[index].astype(np.float64, copy=True)
         chosen[total == 0] = np.nan
         return chosen
-    return _rows_quantile_prefix(weights, session_index, sorted_values, quantile)
+    return _rows_quantile_prefix(float_weights, session_index, sorted_values, quantile)
 
 
 def _rows_quantile_prefix(
@@ -187,8 +209,12 @@ def run_bootstrap(job: BootstrapJob) -> list[ColumnResult]:
     rel = (
         np.array([column.rel for column in ratio], dtype=bool) if ratio else np.zeros(0, dtype=bool)
     )
-    buffer_c = np.empty((chunk, sessions_c), dtype=np.float64)
-    buffer_b = np.empty((chunk, sessions_b), dtype=np.float64)
+    distinct_c, position_c = _distinct_sides([(c.q, c.sc, c.vc) for c in percentile])
+    distinct_b, position_b = _distinct_sides([(c.q, c.sb, c.vb) for c in percentile])
+    # Poisson weights are small integers. Integer cumulative sums reach the same
+    # quantiles as float ones while moving half the memory.
+    buffer_c = np.empty((chunk, sessions_c), dtype=np.int32)
+    buffer_b = np.empty((chunk, sessions_b), dtype=np.int32)
     filled = 0
     start = 0
 
@@ -197,12 +223,18 @@ def run_bootstrap(job: BootstrapJob) -> list[ColumnResult]:
             return
         weight_c = buffer_c[:count]
         weight_b = buffer_b[:count]
+        float_c = weight_c.astype(np.float64)
+        float_b = weight_b.astype(np.float64)
         if ratio_count:
             out_ratio[offset : offset + count] = _ratio_diffs(
-                weight_c, weight_b, num_c, den_c, num_b, den_b, rel
+                float_c, float_b, num_c, den_c, num_b, den_b, rel
             )
+        candidate = [_rows_quantile(weight_c, float_c, s, v, q) for q, s, v in distinct_c]
+        baseline = [_rows_quantile(weight_b, float_b, s, v, q) for q, s, v in distinct_b]
         for index, column in enumerate(percentile):
-            out_pct[offset : offset + count, index] = _percentile_diffs(weight_c, weight_b, column)
+            out_pct[offset : offset + count, index] = _percentile_diffs(
+                candidate[position_c[index]], baseline[position_b[index]], column.rel
+            )
 
     for _resample in range(resamples):
         if sessions_c:

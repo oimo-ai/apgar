@@ -24,6 +24,8 @@ from apgar.worker.jobs.rollup import RollupJob
 
 _SEEDED_AT = "demo.seeded_at"
 _BATCH = 2000
+# Larger assembly batches than the worker's let the seeded releases appear sooner.
+_ASSEMBLY_BATCH = 2000
 # The scripted FAIL and PASS outcomes were checked at this instant. Seeding at
 # another time of day shifts the diurnal sample and the bootstrap seed.
 DEMO_CLOCK = datetime(2026, 10, 8, 9, 30, tzinfo=UTC)
@@ -160,7 +162,7 @@ async def seed(
         if client is not None:
             await client.command("SYSTEM FLUSH ASYNC INSERT QUEUE")
         for _ in range(10000):
-            if await assembler.run_once(now) == 0:
+            if await assembler.run_once(now, limit=_ASSEMBLY_BATCH) == 0:
                 break
         else:
             raise RuntimeError("assembly did not finish")
@@ -281,6 +283,43 @@ async def _ensure_releases(
     return ordered
 
 
+async def _simulate_agent(
+    event_store: EventStore,
+    meta_store: MetaStore,
+    agent: Agent,
+    now: datetime,
+    evaluator: Any,
+    notify: bool,
+) -> dict[str, dict[str, str]]:
+    names = await _ensure_releases(event_store, meta_store, agent, now)
+    releases = await meta_store.list_releases(
+        ReleaseFilters(agent_id=agent.id, limit=100_000, offset=0)
+    )
+    by_name = {item.release: item for item in releases}
+    ordered = sorted(
+        (by_name[name] for name in names if name in by_name),
+        key=lambda item: item.first_seen,
+    )
+    agent_states: dict[str, dict[str, str]] = {}
+    for release in ordered:
+        current = release
+        for moment in _simulation_times(
+            release.first_seen, now, agent.verdict_settings.max_window_hours
+        ):
+            await evaluator.evaluate_release(agent, current, moment, False, notify=notify)
+            stored = await meta_store.get_release(agent.id, release.release)
+            if stored is None:
+                break
+            current = stored
+            if stored.final:
+                break
+        agent_states[release.release] = {
+            "state": current.state.value,
+            "reason": current.reason.value,
+        }
+    return agent_states
+
+
 async def simulate_verdicts(
     event_store: EventStore,
     meta_store: MetaStore,
@@ -290,35 +329,18 @@ async def simulate_verdicts(
     *,
     notify: bool = True,
 ) -> dict[str, dict[str, dict[str, str]]]:
-    states: dict[str, dict[str, dict[str, str]]] = {}
-    for agent in await meta_store.list_agents():
-        if not agent.is_demo:
-            continue
-        names = await _ensure_releases(event_store, meta_store, agent, now)
-        releases = await meta_store.list_releases(
-            ReleaseFilters(agent_id=agent.id, limit=100_000, offset=0)
-        )
-        by_name = {item.release: item for item in releases}
-        ordered = sorted(
-            (by_name[name] for name in names if name in by_name),
-            key=lambda item: item.first_seen,
-        )
-        agent_states: dict[str, dict[str, str]] = {}
-        for release in ordered:
-            current = release
-            for moment in _simulation_times(
-                release.first_seen, now, agent.verdict_settings.max_window_hours
-            ):
-                await evaluator.evaluate_release(agent, current, moment, False, notify=notify)
-                stored = await meta_store.get_release(agent.id, release.release)
-                if stored is None:
-                    break
-                current = stored
-                if stored.final:
-                    break
-            agent_states[release.release] = {
-                "state": current.state.value,
-                "reason": current.reason.value,
-            }
-        states[agent.name] = agent_states
-    return states
+    agents = [agent for agent in await meta_store.list_agents() if agent.is_demo]
+    # Releases of one agent replay in order because each one's baseline depends
+    # on the verdicts before it. The agents share nothing, so they run side by
+    # side, and a failure cancels the other replay before the job ends.
+    try:
+        async with asyncio.TaskGroup() as group:
+            tasks = [
+                group.create_task(
+                    _simulate_agent(event_store, meta_store, agent, now, evaluator, notify)
+                )
+                for agent in agents
+            ]
+    except ExceptionGroup as failed:
+        raise failed.exceptions[0] from failed
+    return {agent.name: task.result() for agent, task in zip(agents, tasks, strict=True)}

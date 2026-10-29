@@ -143,6 +143,19 @@ async def test_nested_subagent(settings: Settings, mem_stores: MemStores) -> Non
     assert turns[0].root_span_id == "7878787878787878"
 
 
+async def test_run_once_assembles_up_to_the_limit(
+    settings: Settings, mem_stores: MemStores
+) -> None:
+    event, meta = mem_stores
+    await _ingest("genai_basic.json", event, settings, FIXTURE_NOW, source_id="a")
+    await _ingest("genai_basic.json", event, settings, FIXTURE_NOW, source_id="b")
+    assembler = _assembler(event, meta, settings)
+    later = FIXTURE_NOW + timedelta(seconds=61)
+    assert await assembler.run_once(later, limit=1) == 1
+    assert await assembler.run_once(later, limit=1) == 1
+    assert await assembler.run_once(later, limit=1) == 0
+
+
 async def test_two_top_agents(settings: Settings, mem_stores: MemStores) -> None:
     event, meta = mem_stores
     await _ingest("two_top_agents.json", event, settings, FIXTURE_NOW)

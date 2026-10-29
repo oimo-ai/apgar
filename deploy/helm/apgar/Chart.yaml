@@ -3,8 +3,8 @@ name: apgar
 description: Release health for AI agents.
 type: application
 # The chart is released together with the images, so both versions follow the app version.
-version: 0.1.2
-appVersion: "0.1.2"
+version: 0.1.3
+appVersion: "0.1.3"
 home: https://docs.useapgar.dev
 sources:
   - https://github.com/oimo-ai/apgar

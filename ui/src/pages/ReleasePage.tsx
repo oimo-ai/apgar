@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { ApiError, apiFetch } from "@/api/client";
-import { useAgent, useAgentReleases, useEvaluations, useEvents, useRelease } from "@/api/queries";
+import { useAgent, useAgentReleases, useEvaluations, useEvents, useRelease, useStatus } from "@/api/queries";
 import type { ReleaseDetail } from "@/api/types";
+import { DemoSeedingNotice } from "@/components/DemoSeedingNotice";
 import { MetricsTable } from "@/components/MetricsTable";
 import { Mono } from "@/components/Mono";
 import { ReleaseStatus } from "@/components/release/ReleaseStatus";
@@ -34,6 +35,8 @@ function AgentLine({ detail }: { detail: ReleaseDetail }) {
   );
 }
 
+const SEEDING_REASON = "Available once the demo data has loaded.";
+
 function stopReason(detail: ReleaseDetail): string | null {
   if (detail.actions.stop.enabled) {
     return null;
@@ -47,12 +50,19 @@ export function ReleasePage() {
   const release = typeof params.release === "string" ? params.release : "";
   const [watch, setWatch] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
-  const detailQuery = useRelease(agent, release, watch !== null);
+  const status = useStatus();
+  const demoSeeding = Boolean(status.data?.demo_seeding);
+  const detailQuery = useRelease(agent, release, watch !== null, demoSeeding);
   const detail = detailQuery.data;
   const queued = watch !== null && (detail?.verdict_updated_at ?? "") === watch;
   const live = detail ? !detail.final : false;
-  const evaluations = useEvaluations(agent, release, queued, live);
-  const events = useEvents(agent, release, queued, live);
+  // The worker is still replaying this demo release, so its actions wait until
+  // the replay ends.
+  const seeding = demoSeeding && Boolean(detail?.agent_is_demo);
+  const replaying = seeding && live;
+  const busy = queued || seeding;
+  const evaluations = useEvaluations(agent, release, queued || replaying, live);
+  const events = useEvents(agent, release, queued || replaying, live);
   const releases = useAgentReleases(agent);
   const agentQuery = useAgent(agent);
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -185,6 +195,7 @@ export function ReleasePage() {
 
   return (
     <div data-testid="page-release" className="flex flex-col gap-5">
+      {seeding ? <DemoSeedingNotice /> : null}
       <header data-testid="release-header" className="flex flex-col gap-4">
         <div className="page-head">
           <div className="min-w-0">
@@ -232,13 +243,21 @@ export function ReleasePage() {
                   </ReasonTip>
                 ) : null}
               </span>
-              <ReasonTip reason={detail.actions.baseline.enabled ? null : "Monitoring has ended, so the baseline can no longer change."}>
+              <ReasonTip
+                reason={
+                  seeding
+                    ? SEEDING_REASON
+                    : detail.actions.baseline.enabled
+                      ? null
+                      : "Monitoring has ended, so the baseline can no longer change."
+                }
+              >
                 <Select
                   aria-label="Baseline release"
                   data-testid="baseline-select"
                   className="min-w-44"
                   value={shownBaseline}
-                  disabled={queued || baselineOptions.length === 0 || !detail.actions.baseline.enabled}
+                  disabled={busy || baselineOptions.length === 0 || !detail.actions.baseline.enabled}
                   onChange={(event) => void changeBaseline(event.target.value)}
                 >
                   {shownBaseline ? null : (
@@ -254,12 +273,12 @@ export function ReleasePage() {
                 </Select>
               </ReasonTip>
             </div>
-            <ReasonTip reason={stopReason(detail)}>
+            <ReasonTip reason={seeding ? SEEDING_REASON : stopReason(detail)}>
               <Button
                 type="button"
                 variant="outline"
                 data-testid="action-stop"
-                disabled={queued || !detail.actions.stop.enabled}
+                disabled={busy || !detail.actions.stop.enabled}
                 onClick={() => void stopMonitoring()}
               >
                 <CircleStop size={14} aria-hidden="true" />
@@ -279,9 +298,11 @@ export function ReleasePage() {
           actions={
             <ReasonTip
               reason={
-                detail.actions.expected_changes.enabled
-                  ? null
-                  : "Trace data for this release has expired, so it cannot be evaluated again."
+                seeding
+                  ? SEEDING_REASON
+                  : detail.actions.expected_changes.enabled
+                    ? null
+                    : "Trace data for this release has expired, so it cannot be evaluated again."
               }
             >
               <Button
@@ -289,7 +310,7 @@ export function ReleasePage() {
                 variant="outline"
                 size="sm"
                 data-testid="action-expected"
-                disabled={queued || !detail.actions.expected_changes.enabled}
+                disabled={busy || !detail.actions.expected_changes.enabled}
                 onClick={() => {
                   setExpected(detail.user_state.expected_changes);
                   setExpectedOpen(true);

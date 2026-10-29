@@ -180,7 +180,7 @@ The spacing tokens export as `--spacing-xs` through `--spacing-2xl`, which Tailw
 
 ## Components
 
-The app shell is a 228px `sidebar` column and a 52px `surface` top bar with a breadcrumb. The sidebar holds the wordmark, icon nav items, and Settings pinned to the bottom. The current item gets the `sidebar-active` fill and `sidebar-strong` text.
+The app shell is a 228px `sidebar` column and a 52px `surface` top bar with a breadcrumb. The sidebar holds the wordmark, icon nav items, and Settings pinned to the bottom, above a footer with the version and icon links to the docs and GitHub. The current item gets the `sidebar-active` fill and `sidebar-strong` text.
 
 Each page opens with a page head: a 24px heading, a muted one line description, and actions on the right.
 

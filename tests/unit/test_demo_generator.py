@@ -176,6 +176,68 @@ async def test_support_behavior_regressions_are_injected(settings: Settings) -> 
     assert all(billing[key] == {"role": "informational"} for key in behavior)
 
 
+async def test_demo_agents_replay_side_by_side(settings: Settings) -> None:
+    import asyncio
+
+    from apgar.demo.generator import simulate_verdicts
+    from apgar.domain.models import Agent, Release
+
+    event, meta, _summary = await _seed(settings, 14, 30)
+    calls: list[tuple[str, str]] = []
+    entered: set[str] = set()
+    both = asyncio.Event()
+
+    class Recorder:
+        async def evaluate_release(
+            self, agent: Agent, release: Release, now: datetime, manual: bool, *, notify: bool
+        ) -> None:
+            calls.append((agent.name, release.release))
+            entered.add(agent.name)
+            if len(entered) == 2:
+                both.set()
+            # A sequential replay never lets the other agent start, so this times out.
+            await asyncio.wait_for(both.wait(), timeout=5)
+
+    await simulate_verdicts(event, meta, settings, _NOW, Recorder(), notify=False)
+    for name in (BILLING, SUPPORT):
+        agent = await meta.get_agent_by_name(name)
+        assert agent is not None
+        releases = [
+            await meta.get_release(agent.id, release)
+            for release in dict.fromkeys(release for owner, release in calls if owner == name)
+        ]
+        first_seen = [release.first_seen for release in releases if release is not None]
+        assert len(first_seen) == len(releases) > 1
+        assert first_seen == sorted(first_seen)
+
+
+async def test_failed_demo_replay_cancels_the_other(settings: Settings) -> None:
+    import asyncio
+
+    from apgar.demo.generator import simulate_verdicts
+    from apgar.domain.models import Agent, Release
+
+    event, meta, _summary = await _seed(settings, 14, 30)
+    cancelled: list[str] = []
+
+    class Failing:
+        async def evaluate_release(
+            self, agent: Agent, release: Release, now: datetime, manual: bool, *, notify: bool
+        ) -> None:
+            if agent.name == BILLING:
+                await asyncio.sleep(0)
+                raise RuntimeError("evaluation failed")
+            try:
+                await asyncio.sleep(5)
+            except asyncio.CancelledError:
+                cancelled.append(agent.name)
+                raise
+
+    with pytest.raises(RuntimeError, match="evaluation failed"):
+        await simulate_verdicts(event, meta, settings, _NOW, Failing(), notify=False)
+    assert cancelled == [SUPPORT]
+
+
 async def test_demo_verdicts_fail_on_behavior_metrics(settings: Settings) -> None:
     import asyncio
 

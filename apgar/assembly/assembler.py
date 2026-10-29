@@ -202,12 +202,14 @@ class Assembler:
         self._pending: list[_AssemblyWrite] = []
         self._pending_callbacks: list[tuple[TurnRow, Agent, datetime]] = []
 
-    async def run_once(self, now: datetime, *, skip_source: str | None = None) -> int:
+    async def run_once(
+        self, now: datetime, *, skip_source: str | None = None, limit: int = 200
+    ) -> int:
         due = await self._events.traces_due_for_assembly(
             now,
             self._settings.assembly_quiet_seconds,
             self._settings.assembly_max_age_seconds,
-            limit=200,
+            limit=limit,
         )
         if skip_source is not None:
             due = [state for state in due if state.source_id != skip_source]

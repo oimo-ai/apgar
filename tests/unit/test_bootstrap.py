@@ -233,3 +233,59 @@ def test_prefix_quantile_matches_definition() -> None:
             assert np.isnan(got[row])
         else:
             assert got[row] == expected
+
+
+def _percentile_job(columns: list[PercentileColumn], sessions: int) -> BootstrapJob:
+    return BootstrapJob(
+        seed=5,
+        resamples=200,
+        chunk=64,
+        n_sessions_c=sessions,
+        n_sessions_b=sessions,
+        ratio=[],
+        percentile=columns,
+    )
+
+
+def _sides(sessions: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    rng = np.random.default_rng(3)
+    return (
+        np.sort(rng.random(120)),
+        rng.integers(0, sessions, size=120),
+        np.sort(rng.random(90)),
+        rng.integers(0, sessions, size=90),
+    )
+
+
+def test_percentile_diffs_match_definition() -> None:
+    sessions = 40
+    vc, sc, vb, sb = _sides(sessions)
+    job = _percentile_job(
+        [PercentileColumn(("latency_p95", "", ""), 0.95, vc, sc, vb, sb, False)], sessions
+    )
+    diffs = run_bootstrap(job)[0].diffs
+    rng = np.random.default_rng(job.seed)
+    for row in range(job.resamples):
+        weight_c = rng.poisson(1.0, size=sessions)
+        weight_b = rng.poisson(1.0, size=sessions)
+        candidate = weighted_quantile(vc, weight_c[sc], 0.95)
+        baseline = weighted_quantile(vb, weight_b[sb], 0.95)
+        assert diffs[row] == candidate - baseline
+
+
+def test_repeated_percentile_columns_match_a_single_column() -> None:
+    sessions = 40
+    vc, sc, vb, sb = _sides(sessions)
+    whole = PercentileColumn(("latency_p95", "", ""), 0.95, vc, sc, vb, sb, False)
+    alone = run_bootstrap(_percentile_job([whole], sessions))[0].diffs
+    relative = PercentileColumn(("latency_p95", "", ""), 0.95, vc, sc, vb, sb, True)
+    relative_alone = run_bootstrap(_percentile_job([relative], sessions))[0].diffs
+    only_model = PercentileColumn(
+        ("latency_p95", "model", "m1"), 0.95, vc.copy(), sc.copy(), vb.copy(), sb.copy(), False
+    )
+    median = PercentileColumn(("latency_p95", "surface", "web"), 0.5, vc, sc, vb, sb, False)
+    results = run_bootstrap(_percentile_job([whole, only_model, relative, median], sessions))
+    assert np.array_equal(results[0].diffs, alone, equal_nan=True)
+    assert np.array_equal(results[1].diffs, alone, equal_nan=True)
+    assert np.array_equal(results[2].diffs, relative_alone, equal_nan=True)
+    assert not np.array_equal(results[3].diffs, alone, equal_nan=True)

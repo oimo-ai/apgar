@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate, useParams, useRouterState } from "@tanstack/react-router";
-import { Bot, Settings } from "lucide-react";
+import { BookOpen, Bot, Settings } from "lucide-react";
 import { useEffect } from "react";
 
 import { apiFetch } from "@/api/client";
@@ -7,7 +7,9 @@ import { useAgent } from "@/api/queries";
 import { ApgarMark } from "@/components/ApgarMark";
 import { DegradedBanner } from "@/components/DegradedBanner";
 import { DemoBadge } from "@/components/DemoBadge";
+import { GitHubMark } from "@/components/GitHubMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { DOCS_URL, GITHUB_URL } from "@/lib/links";
 import { readChoice } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -81,7 +83,33 @@ export function AppLayout() {
               );
             })}
           </div>
-          <p className="app-sidebar-foot">Self hosted · v{__APP_VERSION__}</p>
+          <div className="app-sidebar-foot">
+            <span data-testid="sidebar-version">Self hosted · v{__APP_VERSION__}</span>
+            <div className="app-sidebar-links">
+              <a
+                data-testid="sidebar-docs"
+                className="app-sidebar-link"
+                href={DOCS_URL}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Apgar docs"
+                title="Docs"
+              >
+                <BookOpen size={16} strokeWidth={1.75} aria-hidden="true" />
+              </a>
+              <a
+                data-testid="sidebar-github"
+                className="app-sidebar-link"
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Apgar on GitHub"
+                title="GitHub"
+              >
+                <GitHubMark />
+              </a>
+            </div>
+          </div>
         </nav>
         <div className="app-main">
           <header className="app-topbar">

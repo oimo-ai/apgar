@@ -2,11 +2,12 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { Circle, CircleAlert, CircleCheck, SlidersHorizontal } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { useAgent, useAgentReleases } from "@/api/queries";
+import { useAgent, useAgentReleases, useStatus } from "@/api/queries";
 import type { AgentOut, ReleaseOut } from "@/api/types";
 import { AgentSyncStatus } from "@/components/AgentSyncStatus";
 import { type Column, DataTable } from "@/components/DataTable";
 import { DemoBadge } from "@/components/DemoBadge";
+import { DemoSeedingNotice } from "@/components/DemoSeedingNotice";
 import { Mono } from "@/components/Mono";
 import { MetricCoverage } from "@/components/MetricCoverage";
 import { ErrorState, Loading } from "@/components/States";
@@ -118,7 +119,7 @@ function GettingStarted({ agent, hasReleases }: { agent: AgentOut; hasReleases: 
   );
 }
 
-function ReleasesPanel({ agent, rows }: { agent: string; rows: ReleaseOut[] }) {
+function ReleasesPanel({ agent, rows, seeding }: { agent: string; rows: ReleaseOut[]; seeding: boolean }) {
   const navigate = useNavigate();
   const columns: Column<ReleaseOut>[] = [
     {
@@ -160,7 +161,7 @@ function ReleasesPanel({ agent, rows }: { agent: string; rows: ReleaseOut[] }) {
       ) : (
         <Panel>
           <PanelBody className="py-8 text-center text-sm text-muted-foreground">
-            No releases yet. Releases appear once turns carry a release attribute.
+            {seeding ? "Loading releases…" : "No releases yet. Releases appear once turns carry a release attribute."}
           </PanelBody>
         </Panel>
       )}
@@ -170,8 +171,11 @@ function ReleasesPanel({ agent, rows }: { agent: string; rows: ReleaseOut[] }) {
 
 export function AgentPage() {
   const { agent: name = "" } = useParams({ strict: false });
-  const agent = useAgent(name);
-  const releases = useAgentReleases(name);
+  const status = useStatus();
+  const demoSeeding = Boolean(status.data?.demo_seeding);
+  const agent = useAgent(name, demoSeeding);
+  const seeding = demoSeeding && Boolean(agent.data?.is_demo);
+  const releases = useAgentReleases(name, seeding);
 
   if ((agent.isPending && !agent.data) || (releases.isPending && !releases.data)) {
     return <Loading />;
@@ -181,7 +185,7 @@ export function AgentPage() {
   }
   const data = agent.data;
   const releaseRows = releases.data?.items ?? [];
-  const empty = data.activity.turns_24h === 0 && releaseRows.length === 0;
+  const empty = data.activity.turns_24h === 0 && releaseRows.length === 0 && !seeding;
 
   return (
     <div data-testid="page-agent" className="flex flex-col gap-4">
@@ -206,6 +210,7 @@ export function AgentPage() {
         </Button>
       </div>
 
+      {seeding ? <DemoSeedingNotice /> : null}
       {data.warnings.includes("untagged_share") ? (
         <Notice tone="warning" testId="agent-untagged-warning">
           More than 5% of turns have no release. Set the release attribute on your spans.
@@ -235,7 +240,7 @@ export function AgentPage() {
       {empty ? (
         <GettingStarted agent={data} hasReleases={releaseRows.length > 0} />
       ) : (
-        <ReleasesPanel agent={data.name} rows={releaseRows} />
+        <ReleasesPanel agent={data.name} rows={releaseRows} seeding={seeding} />
       )}
     </div>
   );

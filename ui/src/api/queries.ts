@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch, onSessionCleared } from "@/api/client";
+import { findDemoRegression } from "@/lib/demo";
 import type {
   AgentOut,
   ConnectionOut,
@@ -44,7 +45,7 @@ export function useStatus() {
   return useQuery({
     queryKey: ["status"],
     queryFn: () => apiFetch<StatusOut>("/api/v1/status"),
-    refetchInterval: 10_000,
+    refetchInterval: (query) => (query.state.data?.demo_seeding ? 2_000 : 10_000),
   });
 }
 
@@ -60,30 +61,45 @@ export function useAgents(seeding = false) {
   return useQuery({
     queryKey: ["agents"],
     queryFn: () => apiFetch<Page<AgentOut>>("/api/v1/agents?limit=500"),
-    refetchInterval: seeding ? 5_000 : 30_000,
+    refetchInterval: seeding ? 2_000 : 30_000,
   });
 }
 
-export function useAgent(name: string) {
+// While the demo loads, demo pages poll so releases and verdicts appear as
+// the worker replays them.
+export function useAgent(name: string, demoSeeding = false) {
   return useQuery({
     queryKey: ["agent", name],
     queryFn: () => apiFetch<AgentOut>(`/api/v1/agents/${encodeURIComponent(name)}`),
     enabled: Boolean(name),
+    refetchInterval: (query) => (demoSeeding && query.state.data?.is_demo ? 2_000 : false),
   });
 }
 
-export function useAgentReleases(agent: string) {
+export function useAgentReleases(agent: string, poll = false) {
   return useQuery({
     queryKey: ["releases", { agent, scope: "agent" }],
     queryFn: () =>
       apiFetch<Page<ReleaseOut>>(`/api/v1/agents/${encodeURIComponent(agent)}/releases?limit=500`),
     enabled: Boolean(agent),
+    refetchInterval: poll ? 2_000 : false,
+  });
+}
+
+export function useDemoRegression(agent: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["demo-regression", agent],
+    queryFn: () => findDemoRegression(agent ? [agent] : []),
+    enabled: enabled && Boolean(agent),
+    refetchInterval: 2_000,
+    // A regression found for an earlier demo must not open after a reseed.
+    gcTime: 0,
   });
 }
 
 const LIVE_HISTORY_MS = 60_000;
 
-export function useRelease(agent: string, release: string, queued = false) {
+export function useRelease(agent: string, release: string, queued = false, demoSeeding = false) {
   return useQuery({
     queryKey: ["release", agent, release],
     queryFn: () =>
@@ -92,7 +108,7 @@ export function useRelease(agent: string, release: string, queued = false) {
       ),
     enabled: Boolean(agent && release),
     refetchInterval: (query) => {
-      if (queued) {
+      if (queued || (demoSeeding && query.state.data?.agent_is_demo && !query.state.data.final)) {
         return 2_000;
       }
       if (query.state.data && query.state.data.final === false) {

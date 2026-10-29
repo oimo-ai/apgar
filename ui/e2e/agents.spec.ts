@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+test("Sidebar docs and GitHub links", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("sidebar-docs")).toHaveAttribute("href", "https://docs.useapgar.dev");
+  await expect(page.getByTestId("sidebar-github")).toHaveAttribute("href", "https://github.com/oimo-ai/apgar");
+});
+
 test("Table content", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("agent-row-billing-copilot")).toBeVisible();

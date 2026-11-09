@@ -39,8 +39,8 @@ RELEASE_WINDOWS: dict[str, tuple[tuple[str, float, float], ...]] = {
 }
 # US dollars per million input and output tokens, written on demo chat spans as gen_ai.usage.cost.
 _PRICES: dict[str, tuple[float, float]] = {
-    "gpt-4.1": (2.0, 8.0),
-    "gpt-4.1-mini": (0.4, 1.6),
+    "gpt-5.6-luna": (0.2, 1.2),
+    "gpt-6-luna": (0.1, 0.5),
     "claude-sonnet-4": (3.0, 15.0),
 }
 _TOOLS: dict[str, tuple[str, ...]] = {
@@ -216,9 +216,9 @@ def _error_probability(agent: str, release: str | None, tool: str) -> float:
 
 def _response_model(agent: str, fraction: float) -> str:
     if agent == BILLING and release_at(agent, fraction) == _A4 and fraction >= 13:
-        return "gpt-4.1-mini"
+        return "gpt-6-luna"
     if agent == BILLING:
-        return "gpt-4.1"
+        return "gpt-5.6-luna"
     return "claude-sonnet-4"
 
 

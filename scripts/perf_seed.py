@@ -23,7 +23,7 @@ from apgar.storage.clickhouse.meta_store import ClickHouseMetaStore
 from apgar.worker.jobs.release_discovery import new_release
 
 _SURFACES = (("slack", 0.50), ("web", 0.35), ("telegram", 0.15))
-_MODELS = ("gpt-4.1", "gpt-4.1-mini")
+_MODELS = ("gpt-5.6-luna", "gpt-6-luna")
 _TOOLS = (("sql_query", 0.75), ("get_invoice", 0.15), ("send_email", 0.10))
 _BATCH = 20_000
 

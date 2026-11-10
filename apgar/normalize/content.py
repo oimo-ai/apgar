@@ -3,11 +3,25 @@ from __future__ import annotations
 import json
 from typing import Any
 
+CHAT_ROLES = frozenset({"assistant", "user", "system", "tool", "developer", "model"})
+MESSAGE_FIELDS = ("content", "parts", "tool_calls")
+
+
+def _is_message(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return False
+    role = item.get("role")
+    if not isinstance(role, str) or role.lower() not in CHAT_ROLES:
+        return False
+    return any(field in item for field in MESSAGE_FIELDS)
+
 
 def parse_messages(value: Any) -> list[tuple[str, str | None]] | None:
     """Return (role, text) pairs, or None when the value is not a message list.
 
-    A message with no readable text, such as a tool-call-only reply, has text None.
+    An item counts as a message only when its role is a chat role and it has content,
+    parts or tool_calls. A message with no readable text, such as a tool-call-only reply,
+    has text None.
     """
     parsed = value
     if isinstance(parsed, str):
@@ -18,18 +32,15 @@ def parse_messages(value: Any) -> list[tuple[str, str | None]] | None:
     if isinstance(parsed, dict):
         if "messages" in parsed:
             parsed = parsed["messages"]
-        elif "role" in parsed:
+        elif _is_message(parsed):
             parsed = [parsed]
     if not isinstance(parsed, list):
         return None
     pairs: list[tuple[str, str | None]] = []
     for item in parsed:
-        if not isinstance(item, dict):
+        if not _is_message(item):
             return None
-        role = item.get("role")
-        if not isinstance(role, str):
-            return None
-        pairs.append((role, _message_text(item)))
+        pairs.append((item["role"], _message_text(item)))
     return pairs
 
 

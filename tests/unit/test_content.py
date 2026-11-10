@@ -95,6 +95,24 @@ def test_empty_key_does_not_hide_content_in_later_key() -> None:
 
 
 @pytest.mark.parametrize(
+    "record",
+    [
+        {"name": "Ann", "role": "CTO"},
+        [{"name": "Ann", "role": "CTO"}, {"name": "Bo", "role": "CFO"}],
+        {"role": "assistant", "status": "ok"},
+    ],
+)
+def test_json_answer_with_role_field_is_checked_as_json(record: object) -> None:
+    value = json.dumps(record)
+    assert parse_messages(value) is None
+    assert parse_messages(record) is None
+    for key in ("gen_ai.output.messages", "output.value", "langfuse.observation.output"):
+        text = extract_final_response({key: value})
+        assert text == value
+        assert output_json_valid(text) is True
+
+
+@pytest.mark.parametrize(
     "attrs",
     [
         {"output.value": ""},

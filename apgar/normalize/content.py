@@ -11,8 +11,11 @@ def parse_messages(value: Any) -> list[tuple[str, str]] | None:
             parsed = json.loads(parsed)
         except json.JSONDecodeError:
             return None
-    if isinstance(parsed, dict) and "messages" in parsed:
-        parsed = parsed["messages"]
+    if isinstance(parsed, dict):
+        if "messages" in parsed:
+            parsed = parsed["messages"]
+        elif "role" in parsed:
+            parsed = [parsed]
     if not isinstance(parsed, list):
         return None
     pairs: list[tuple[str, str]] = []
@@ -45,6 +48,8 @@ def _message_text(item: dict[str, Any]) -> str | None:
     if "content" not in item:
         return None
     content = item["content"]
+    if content is None:
+        return ""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -71,7 +76,7 @@ def _extract(attrs: dict[str, Any], keys: tuple[str, ...], role: str) -> str | N
             if matches:
                 return matches[-1]
             continue
-        if isinstance(value, str) and value:
+        if isinstance(value, str):
             return value
     return None
 

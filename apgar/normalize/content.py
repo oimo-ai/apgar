@@ -4,7 +4,11 @@ import json
 from typing import Any
 
 
-def parse_messages(value: Any) -> list[tuple[str, str]] | None:
+def parse_messages(value: Any) -> list[tuple[str, str | None]] | None:
+    """Return (role, text) pairs, or None when the value is not a message list.
+
+    A message with no readable text, such as a tool-call-only reply, has text None.
+    """
     parsed = value
     if isinstance(parsed, str):
         try:
@@ -18,17 +22,14 @@ def parse_messages(value: Any) -> list[tuple[str, str]] | None:
             parsed = [parsed]
     if not isinstance(parsed, list):
         return None
-    pairs: list[tuple[str, str]] = []
+    pairs: list[tuple[str, str | None]] = []
     for item in parsed:
         if not isinstance(item, dict):
             return None
         role = item.get("role")
         if not isinstance(role, str):
             return None
-        text = _message_text(item)
-        if text is None:
-            return None
-        pairs.append((role, text))
+        pairs.append((role, _message_text(item)))
     return pairs
 
 
@@ -44,12 +45,8 @@ def _message_text(item: dict[str, Any]) -> str | None:
             and part.get("type") == "text"
             and isinstance(part.get("content"), str)
         ]
-        return "\n".join(chunks)
-    if "content" not in item:
-        return None
-    content = item["content"]
-    if content is None:
-        return ""
+        return "\n".join(chunks) if chunks else None
+    content = item.get("content")
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -60,12 +57,13 @@ def _message_text(item: dict[str, Any]) -> str | None:
             and part.get("type") == "text"
             and isinstance(part.get("text"), str)
         ]
-        return "\n".join(chunks)
+        return "\n".join(chunks) if chunks else None
     return None
 
 
 def _extract(attrs: dict[str, Any], keys: tuple[str, ...], role: str) -> str | None:
     wanted = role.lower()
+    saw_empty = False
     for key in keys:
         if key not in attrs:
             continue
@@ -73,12 +71,16 @@ def _extract(attrs: dict[str, Any], keys: tuple[str, ...], role: str) -> str | N
         pairs = parse_messages(value)
         if pairs is not None:
             matches = [text for item_role, text in pairs if item_role.lower() == wanted]
-            if matches:
-                return matches[-1]
-            continue
-        if isinstance(value, str):
-            return value
-    return None
+            text = matches[-1] if matches else None
+        elif isinstance(value, str):
+            text = value
+        else:
+            text = None
+        if text:
+            return text
+        if text == "":
+            saw_empty = True
+    return "" if saw_empty else None
 
 
 def extract_final_response(attrs: dict[str, Any]) -> str | None:

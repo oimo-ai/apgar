@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+
+import pytest
+
 from apgar.normalize.content import (
     extract_final_response,
     output_json_valid,
@@ -41,3 +45,34 @@ def test_output_json_valid_cases() -> None:
     )
     assert text == '{"ok":true}'
     assert output_json_valid(text) is True
+
+
+def test_single_message_object_is_unwrapped() -> None:
+    value = json.dumps({"role": "assistant", "content": "not json"})
+    text = extract_final_response({"langfuse.observation.output": value})
+    assert text == "not json"
+    assert output_json_valid(text) is False
+    assert parse_messages({"role": "assistant", "content": "plain"}) == [("assistant", "plain")]
+
+
+def test_null_content_is_an_empty_reply() -> None:
+    tool_only = {"role": "assistant", "content": None, "tool_calls": [{"id": "call_1"}]}
+    assert parse_messages(tool_only) == [("assistant", "")]
+    for value in (tool_only, json.dumps(tool_only), [tool_only]):
+        text = extract_final_response({"langfuse.observation.output": value})
+        assert text == ""
+        assert output_json_valid(text) is False
+
+
+@pytest.mark.parametrize(
+    "attrs",
+    [
+        {"output.value": ""},
+        {"langfuse.observation.output": ""},
+        {"gen_ai.output.messages": [{"role": "assistant", "content": ""}]},
+    ],
+)
+def test_empty_reply_is_counted_as_invalid(attrs: dict[str, object]) -> None:
+    text = extract_final_response(attrs)
+    assert text == ""
+    assert output_json_valid(text) is False

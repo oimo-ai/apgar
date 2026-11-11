@@ -25,6 +25,7 @@ from apgar.ingest.pipeline import write_batch
 from apgar.normalize.normalizer import normalize
 from apgar.normalize.otlp import decode_request, iter_raw_spans
 from apgar.storage.memory import InMemoryEventStore, InMemoryMetaStore
+from apgar.storage.types import ArmData, ArmQuery
 from apgar.worker.jobs.langfuse_sync import LangfuseSyncJob
 from tests.factories import make_agent, make_connection
 from tests.support import FIXTURE_NOW, keys_for, load_fixture
@@ -516,12 +517,10 @@ def _instrumented_trace(index: int) -> list[dict[str, object]]:
     return [root, generation, tool]
 
 
-async def test_instrumented_agent_gets_behavior_metrics(settings: Settings) -> None:
-    from apgar.domain.enums import MetricId, OutputFormat
-    from apgar.domain.settings import effective_metric_settings
-    from apgar.storage.types import ArmQuery
-    from apgar.verdict.applicability import assess
-    from apgar.verdict.metrics import specs_for
+async def _sync_instrumented(
+    settings: Settings, traces: list[list[dict[str, object]]]
+) -> tuple[ArmData, list[str]]:
+    from apgar.domain.enums import OutputFormat
 
     event, meta = InMemoryEventStore(), InMemoryMetaStore()
     connection = _connection(FIXTURE_NOW)
@@ -533,7 +532,6 @@ async def test_instrumented_agent_gets_behavior_metrics(settings: Settings) -> N
         output_format=OutputFormat.json,
         release_settings=ReleaseSettings(),
     )
-    traces = [_instrumented_trace(index) for index in range(40)]
     requested: list[str] = []
 
     def _respond(request: httpx.Request) -> httpx.Response:
@@ -551,7 +549,6 @@ async def test_instrumented_agent_gets_behavior_metrics(settings: Settings) -> N
     await Assembler(event, meta, settings, keys_for(settings), lambda: FIXTURE_NOW).run_once(
         FIXTURE_NOW + timedelta(seconds=61)
     )
-    assert any("io" in fields.split(",") for fields in requested)
     arm = await event.load_arm(
         ArmQuery(
             agent.id,
@@ -566,7 +563,20 @@ async def test_instrumented_agent_gets_behavior_metrics(settings: Settings) -> N
             False,
         )
     )
+    return arm, requested
+
+
+async def test_instrumented_agent_gets_behavior_metrics(settings: Settings) -> None:
+    from apgar.domain.enums import MetricId
+    from apgar.domain.settings import effective_metric_settings
+    from apgar.verdict.applicability import assess
+    from apgar.verdict.metrics import specs_for
+
+    traces = [_instrumented_trace(index) for index in range(40)]
+    arm, requested = await _sync_instrumented(settings, traces)
+    assert any("io" in fields.split(",") for fields in requested)
     assert len(arm.turns) == 40
+    assert all(turn.format_ok is True for turn in arm.turns)
     specs = {spec.id: spec for spec in specs_for(effective_metric_settings({}))}
     for metric_id in (
         MetricId.tool_retry_rate,
@@ -575,3 +585,17 @@ async def test_instrumented_agent_gets_behavior_metrics(settings: Settings) -> N
     ):
         decision = assess(specs[metric_id], arm.turns, arm.tool_calls, arm.turns, arm.tool_calls)
         assert decision.applicable, (metric_id, decision.na_reason)
+
+
+async def test_final_response_from_generation_when_root_has_no_output(
+    settings: Settings,
+) -> None:
+    traces = [_instrumented_trace(index) for index in range(40)]
+    reply = "Sorry, I can't help with that."
+    for root, generation, _tool in traces:
+        del root["output"]
+        generation["output"] = {"role": "assistant", "content": reply}
+    arm, _requested = await _sync_instrumented(settings, traces)
+    assert len(arm.turns) == 40
+    assert all(turn.format_ok is False for turn in arm.turns)
+    assert all(turn.output_chars == len(reply) for turn in arm.turns)
